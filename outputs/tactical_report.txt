@@ -1,0 +1,45 @@
+================================================================
+  TACTICAL SIMULATION - ANALYTICAL REPORT
+================================================================
+
+  MISSION OUTCOME : DRAW 
+
+  EVOLUTIONARY OPTIMIZATION  (Rechenberg 1/5 Rule)
+    Iterations executed  : 10
+    Successful runs      : 0
+    Success rate         : 0.0%
+
+  OPTIMIZED TACTICAL PARAMETERS
+    Aggressiveness       : 0.650
+    Cover Seeking        : 0.500
+    Teamwork             : 0.300
+
+  CASUALTY STATISTICS
+    Blue (Attacker)
+      Initial units      : 60
+      Surviving units    : 36
+      Casualties         : 24  (40.0%)
+    Red (Defender)
+      Initial units      : 60
+      Surviving units    : 30
+      Casualties         : 30  (50.0%)
+
+  RESOURCE CONSUMPTION (final state)
+    Avg ammo  Blue       : 12.6 / 30
+    Avg ammo  Red        : 12.9 / 30
+    Avg morale Blue      : 0.68
+    Avg morale Red       : 0.61
+
+  ITERATION LOG
+    Iter  1: LOSS | Aggr=0.53  Cover=0.51  Team=0.20  |  Blue casualties: 34
+    Iter  2: LOSS | Aggr=0.73  Cover=0.27  Team=0.28  |  Blue casualties: 25
+    Iter  3: LOSS | Aggr=0.71  Cover=0.53  Team=0.29  |  Blue casualties: 28
+    Iter  4: LOSS | Aggr=0.73  Cover=0.65  Team=0.29  |  Blue casualties: 23
+    Iter  5: LOSS | Aggr=0.55  Cover=0.57  Team=0.46  |  Blue casualties: 26
+    Iter  6: LOSS | Aggr=0.73  Cover=0.80  Team=0.32  |  Blue casualties: 26
+    Iter  7: LOSS | Aggr=0.49  Cover=0.37  Team=0.38  |  Blue casualties: 31
+    Iter  8: LOSS | Aggr=0.39  Cover=0.35  Team=0.36  |  Blue casualties: 26
+    Iter  9: LOSS | Aggr=0.67  Cover=0.61  Team=0.43  |  Blue casualties: 34
+    Iter 10: LOSS | Aggr=0.55  Cover=0.55  Team=0.50  |  Blue casualties: 28
+
+================================================================
