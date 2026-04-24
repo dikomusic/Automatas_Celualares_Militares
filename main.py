@@ -1,252 +1,209 @@
-import os
 import sys
-import shutil
+import os
+import copy
+import pygame
+from typing import List, Optional
 
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-import numpy as np
+from src.environment.map_parser import MapParser
+from src.environment.grid import TacticalGrid
+from src.core.engine import SimulationEngine
+from src.entities.unit import Unit
+from src.ui.renderer import TacticalRenderer
+from src.ui.analytics import AnalyticsManager
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-from src.mapper    import MapLoader
-from src.engine    import CASimulator
-from src.optimizer import RechenbergOptimizer
-
-OUTPUT_DIR = 'outputs'
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-
-# -- Terrain colour palette (RGB, 0-1) -----------------------------------------
-TERRAIN_RGB = {
-    0: [0.08, 0.08, 0.10],   # Empty    - near-black
-    1: [0.13, 0.45, 0.13],   # Forest   - dark green
-    2: [0.25, 0.45, 0.65],   # Obstacle - steel blue (river)
-    3: [0.75, 0.10, 0.10],   # Objective- crimson
-    4: [0.65, 0.62, 0.48],   # Urban    - tan (contour lines)
-    5: [0.90, 0.80, 0.10],   # Supply   - gold
+# ==============================================================================
+# CONFIGURATION
+# ==============================================================================
+CONFIG = {
+    'maps_dir': 'data/maps',
+    'max_turns': 2000,
+    'cell_size': 10,
+    'sim_speed': 30
 }
 
+class TacticalApp:
+    """
+    Main Application Controller for the Military Tactical Simulator.
+    
+    Orchestrates the lifecycle of the simulation, managing user input, 
+    engine updates, and rendering.
+    """
 
-# -- Frame renderer ------------------------------------------------------------
-def render_frame(terrain, blue_grid, red_grid, stats, step, save_path):
-    fig = plt.figure(figsize=(14, 7), facecolor='#0d1117')
-    gs  = fig.add_gridspec(1, 2, width_ratios=[3, 1], wspace=0.03)
-    ax_map   = fig.add_subplot(gs[0])
-    ax_stats = fig.add_subplot(gs[1])
+    def __init__(self):
+        # 1. System Components
+        self.analytics = AnalyticsManager()
+        self.parser = MapParser()
+        self.clock = pygame.time.Clock()
+        
+        # 2. Map Management
+        self.map_files = self._get_available_maps()
+        if not self.map_files:
+            raise RuntimeError("No map files found in data/maps/")
+        
+        self.map_idx = 0
+        self.current_map_path = ""
+        self.grid: Optional[TacticalGrid] = None
+        
+        # 3. Simulation State
+        self.is_running = True
+        self.is_paused = True
+        self.active_brush = 'blue_team'  # blue_team, red_team, eraser
+        self.turn = 0
+        self.combat_traces = []
+        
+        # 4. Engine & Renderer Initialization
+        self._load_map(self.map_idx)
+        self.renderer = TacticalRenderer(self.grid.width, self.grid.height, CONFIG['cell_size'])
+        self.engine = SimulationEngine(self.grid, [], [], self._get_default_depots())
 
-    # Build RGB terrain image
-    rows, cols = terrain.shape
-    rgb = np.zeros((rows, cols, 3))
-    for t, color in TERRAIN_RGB.items():
-        mask = terrain == t
-        rgb[mask] = color
+    def _get_available_maps(self) -> List[str]:
+        """Returns list of .png files in the maps directory."""
+        if not os.path.exists(CONFIG['maps_dir']):
+            return []
+        return sorted([f for f in os.listdir(CONFIG['maps_dir']) if f.endswith('.png')])
 
-    ax_map.imshow(rgb, interpolation='nearest')
-    ax_map.set_facecolor('#0d1117')
+    def _get_default_depots(self) -> List[tuple]:
+        """Calculates center-map supply points."""
+        return [(self.grid.width // 2, self.grid.height // 2)]
 
-    # Blue units (attacker) - cyan squares
-    br, bc = np.where(blue_grid > 0)
-    if len(br):
-        ax_map.scatter(bc, br, c='cyan', s=18, marker='s',
-                       alpha=0.95, linewidths=0, zorder=4)
+    def _load_map(self, idx: int):
+        """Loads a specific map from the directory."""
+        self.map_idx = idx % len(self.map_files)
+        self.current_map_path = os.path.join(CONFIG['maps_dir'], self.map_files[self.map_idx])
+        self.grid = self.parser.parse_image_to_grid(self.current_map_path)
+        
+        # Update existing engine if it exists
+        if hasattr(self, 'engine'):
+            self.engine.grid = self.grid
+            # Purge out-of-bounds units
+            self.engine.units = [u for u in self.engine.units if self.grid.is_in_bounds(u.x, u.y)]
+        
+        print(f"[*] Map loaded: {self.map_files[self.map_idx]}")
 
-    # Red units (defender) - red triangles
-    rr, rc = np.where(red_grid > 0)
-    if len(rr):
-        ax_map.scatter(rc, rr, c='#ff4444', s=18, marker='^',
-                       alpha=0.95, linewidths=0, zorder=4)
+    def _handle_events(self):
+        """Dispatches input events to specialized handlers."""
+        for event in self.renderer.handle_events():
+            if event.type == pygame.QUIT:
+                self.is_running = False
+            elif event.type == pygame.KEYDOWN:
+                self._on_keydown(event)
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                self._on_mousedown(event)
 
-    ax_map.set_title(f'Tactical Simulation  -  Step {step:03d}',
-                     color='white', fontsize=13, fontweight='bold', pad=8)
-    ax_map.axis('off')
+    def _on_keydown(self, event):
+        """Handles keypress-based commands."""
+        if event.key == pygame.K_SPACE:
+            self.is_paused = not self.is_paused
+        elif event.key == pygame.K_RIGHT and self.is_paused:
+            self._step_simulation()
+        elif event.key == pygame.K_1:
+            self.active_brush = 'blue_team'
+        elif event.key == pygame.K_2:
+            self.active_brush = 'red_team'
+        elif event.key == pygame.K_3:
+            self.active_brush = 'eraser'
+        elif event.key == pygame.K_m:
+            self._load_map(self.map_idx + 1)
+        elif event.key == pygame.K_c:
+            self.engine.units = []
+            self.turn = 0
+            print("[*] Tactical environment cleared.")
 
-    legend_elements = [
-        mpatches.Patch(facecolor='cyan',    label=f"Blue (Attacker) : {stats['blue_alive']} units"),
-        mpatches.Patch(facecolor='#ff4444', label=f"Red  (Defender) : {stats['red_alive']} units"),
-        mpatches.Patch(facecolor='#217021', label='Forest  (cover)'),
-        mpatches.Patch(facecolor='#4072A6', label='River   (obstacle)'),
-        mpatches.Patch(facecolor='#BF1A1A', label='Objective'),
-        mpatches.Patch(facecolor='#E6CC00', label='Supply depot'),
-    ]
-    ax_map.legend(handles=legend_elements, loc='lower left',
-                  facecolor='#161b22', edgecolor='#30363d',
-                  labelcolor='white', fontsize=8, framealpha=0.9)
+    def _on_mousedown(self, event):
+        """Handles manual troop placement and removal, or button/map interaction."""
+        # 1. Check for UI Buttons
+        btn_key = self.renderer.get_button_clicked(event.pos)
+        if btn_key == 'play':
+            self.is_paused = not self.is_paused
+            return
+        elif btn_key == 'step':
+            if self.is_paused:
+                self._step_simulation()
+            return
 
-    # -- Stats panel -----------------------------------------------------------
-    ax_stats.set_facecolor('#161b22')
-    ax_stats.axis('off')
+        # 2. Check for Map Selection (Sidebar)
+        map_idx = self.renderer.get_map_selector_index(event.pos)
+        if map_idx is not None and map_idx < len(self.map_files):
+            self._load_map(map_idx)
+            return
+        gx, gy = self.renderer.get_grid_coords(event.pos)
+        if not self.grid.is_in_bounds(gx, gy):
+            return
 
-    def bar(ax, y, val, color, label, max_val=100):
-        ax.barh(y, val / max_val, color=color, height=0.06,
-                left=0.05, alpha=0.85)
-        ax.text(0.05 + val / max_val + 0.02, y, f'{val:.0f}',
-                color='white', va='center', fontsize=7)
-        ax.text(0.04, y, label, color='#aaaaaa', va='center',
-                ha='right', fontsize=7)
+        if self.active_brush == 'eraser':
+            self.engine.units = [u for u in self.engine.units if (u.x, u.y) != (gx, gy)]
+        else:
+            # Check for existing unit
+            if not any(u.x == gx and u.y == gy for u in self.engine.units):
+                new_unit = Unit(faction=self.active_brush, x=gx, y=gy)
+                # Apply faction doctrines
+                if self.active_brush == 'blue_team':
+                    new_unit.aggressiveness, new_unit.teamwork = 0.8, 0.4
+                else:
+                    new_unit.aggressiveness, new_unit.teamwork = 0.2, 0.8
+                self.engine.units.append(new_unit)
 
-    lines = [
-        ('', ''),
-        ('BLUE TEAM', ''),
-        ('  Units   ', f"{stats['blue_alive']}"),
-        ('  HP      ', f"{stats['blue_avg_health']:.1f}"),
-        ('  Ammo    ', f"{stats['blue_avg_ammo']:.1f}"),
-        ('  Morale  ', f"{stats['blue_avg_morale']:.2f}"),
-        ('', ''),
-        ('RED TEAM', ''),
-        ('  Units   ', f"{stats['red_alive']}"),
-        ('  HP      ', f"{stats['red_avg_health']:.1f}"),
-        ('  Ammo    ', f"{stats['red_avg_ammo']:.1f}"),
-        ('  Morale  ', f"{stats['red_avg_morale']:.2f}"),
-    ]
-    text = '\n'.join(
-        f"{k}{v}" if k.strip() else ''
-        for k, v in lines
-    )
-    ax_stats.text(0.08, 0.92, f'STEP {step:03d}',
-                  transform=ax_stats.transAxes, color='#58a6ff',
-                  fontsize=14, fontweight='bold', va='top')
-    ax_stats.text(0.08, 0.82, text,
-                  transform=ax_stats.transAxes, color='white',
-                  fontsize=9, va='top', fontfamily='monospace',
-                  linespacing=1.6)
+    def _step_simulation(self):
+        """Executes one simulation tick and logs events."""
+        tick_data = self.engine.tick()
+        self.combat_traces.extend(tick_data['shots'])
+        
+        # Log to analytics for post-mission debrief
+        for unit in self.engine.units:
+            self.analytics.log_event(self.turn, 'move', unit.faction, (unit.x, unit.y))
+        for shot in tick_data['shots']:
+            self.analytics.log_event(self.turn, 'shot', shot['faction'], shot['attacker'])
+        for death in tick_data['deaths']:
+            self.analytics.log_event(self.turn, 'death', death['faction'], (death['x'], death['y']))
+        
+        self.turn += 1
+        if self.turn % 100 == 0:
+            print(f"[*] Turn {self.turn} Progress Logged.")
 
-    plt.savefig(save_path, bbox_inches='tight',
-                facecolor=fig.get_facecolor(), dpi=100)
-    plt.close(fig)
+    def run(self):
+        """Entry point for the simulation loop."""
+        print("[*] Tactical Command Center Online.")
+        print("[*] Controls: SPACE(Pause), RIGHT(Step), 1/2/3(Brushes), M(Map), C(Clear)")
 
+        while self.is_running:
+            self._handle_events()
+            
+            self.combat_traces = [] # Clear traces every frame for rendering
+            if not self.is_paused:
+                self._step_simulation()
+                if self.turn >= CONFIG['max_turns']:
+                    self.is_paused = True
 
-# -- Analytical report ---------------------------------------------------------
-def generate_report(sim: CASimulator, opt_results: list,
-                    best_params: dict, path: str):
-    units = sim.units
-    blue_all  = [u for u in units if u.team == 0]
-    red_all   = [u for u in units if u.team == 1]
-    blue_alive = [u for u in blue_all if u.alive]
-    red_alive  = [u for u in red_all  if u.alive]
+            # Render Phase
+            self.renderer.render_frame(
+                grid=self.grid,
+                units=self.engine.units,
+                combat_events=self.combat_traces,
+                turn=self.turn,
+                is_paused=self.is_paused,
+                brush=self.active_brush,
+                map_name=self.map_files[self.map_idx],
+                available_maps=self.map_files
+            )
 
-    winner     = sim.get_winner() or 'Draw'
-    wins       = sum(1 for r in opt_results if r['won'])
-    total_iter = len(opt_results)
-    success_rt = wins / total_iter if total_iter else 0.0
+            self.clock.tick(CONFIG['sim_speed'])
 
-    sep = '=' * 64
+        self._finalize()
 
-    lines = [
-        sep,
-        '  TACTICAL SIMULATION - ANALYTICAL REPORT',
-        sep,
-        '',
-        f'  MISSION OUTCOME : {winner.upper()} {"VICTORY" if winner != "Draw" else ""}',
-        '',
-        '  EVOLUTIONARY OPTIMIZATION  (Rechenberg 1/5 Rule)',
-        f'    Iterations executed  : {total_iter}',
-        f'    Successful runs      : {wins}',
-        f'    Success rate         : {success_rt:.1%}',
-        '',
-        '  OPTIMIZED TACTICAL PARAMETERS',
-        f'    Aggressiveness       : {best_params.get("aggressiveness", 0):.3f}',
-        f'    Cover Seeking        : {best_params.get("cover_seeking", 0):.3f}',
-        f'    Teamwork             : {best_params.get("teamwork", 0):.3f}',
-        '',
-        '  CASUALTY STATISTICS',
-        '    Blue (Attacker)',
-        f'      Initial units      : {len(blue_all)}',
-        f'      Surviving units    : {len(blue_alive)}',
-        f'      Casualties         : {len(blue_all) - len(blue_alive)}'
-        f'  ({(len(blue_all)-len(blue_alive))/max(len(blue_all),1)*100:.1f}%)',
-        '    Red (Defender)',
-        f'      Initial units      : {len(red_all)}',
-        f'      Surviving units    : {len(red_alive)}',
-        f'      Casualties         : {len(red_all) - len(red_alive)}'
-        f'  ({(len(red_all)-len(red_alive))/max(len(red_all),1)*100:.1f}%)',
-        '',
-        '  RESOURCE CONSUMPTION (final state)',
-        f'    Avg ammo  Blue       : {np.mean([u.ammo for u in blue_all]):.1f} / 30',
-        f'    Avg ammo  Red        : {np.mean([u.ammo for u in red_all]):.1f} / 30',
-        f'    Avg morale Blue      : {np.mean([u.morale for u in blue_alive] or [0]):.2f}',
-        f'    Avg morale Red       : {np.mean([u.morale for u in red_alive]  or [0]):.2f}',
-        '',
-        '  ITERATION LOG',
-    ]
+    def _finalize(self):
+        """Exports data and closes systems."""
+        if self.turn > 0:
+            print("\n[*] Exporting Mission Analytics...")
+            self.analytics.generate_mission_report(self.engine.units, self.engine.units, self.turn)
+            self.analytics.generate_heatmaps(self.current_map_path, (self.grid.width, self.grid.height))
+        
+        self.renderer.close()
+        print("[+] All systems offline. Shutdown complete.")
 
-    for r in opt_results:
-        p   = r['params']
-        tag = 'WIN ' if r['won'] else 'LOSS'
-        lines.append(
-            f"    Iter {r['iteration']:2d}: {tag} | "
-            f"Aggr={p['aggressiveness']:.2f}  "
-            f"Cover={p['cover_seeking']:.2f}  "
-            f"Team={p['teamwork']:.2f}  |  "
-            f"Blue casualties: {r['casualties']}"
-        )
-
-    lines += ['', sep]
-    report = '\n'.join(lines)
-
-    with open(path, 'w', encoding='utf-8') as f:
-        f.write(report)
-
-    print('\n' + report)
-
-
-# -- Main entry point ----------------------------------------------------------
-def run_simulation(steps: int = 30, n_opt_iter: int = 10):
-    print('=' * 60)
-    print('  Military Tactical Simulator - Open House 2026')
-    print('=' * 60)
-
-    loader  = MapLoader('assets/image.png', grid_width=80)
-    terrain = loader.get_grid()
-    print(f'\n  Grid size : {terrain.shape[0]} rows x {terrain.shape[1]} cols')
-
-    unique, counts = np.unique(terrain, return_counts=True)
-    for u, c in zip(unique, counts):
-        names = {0:'Empty',1:'Forest',2:'Obstacle',3:'Objective',4:'Urban',5:'Supply'}
-        print(f'    {names.get(u, u)}: {c} cells ({c/terrain.size*100:.1f}%)')
-
-    # Phase 3: Rechenberg optimization
-    optimizer = RechenbergOptimizer(terrain, n_iterations=n_opt_iter, sim_steps=steps)
-    best_params, _, opt_results = optimizer.optimize()
-
-    # Phase 4: Final simulation with best params
-    print(f'\n--- Final simulation with optimized parameters ({steps} steps) ---')
-    sim = CASimulator(terrain, params=best_params)
-
-    last_frame_path = None
-    final_step      = steps - 1
-
-    for i in range(steps):
-        blue_grid, red_grid, stats = sim.step()
-
-        save_path = os.path.join(OUTPUT_DIR, f'frame_{i:03d}.png')
-        render_frame(terrain, blue_grid, red_grid, stats, i, save_path)
-        last_frame_path = save_path
-
-        if i % 5 == 0 or i == steps - 1:
-            print(f'  Step {i:3d} | Blue: {stats["blue_alive"]:3d} | '
-                  f'Red: {stats["red_alive"]:3d} | '
-                  f'Blue HP: {stats["blue_avg_health"]:5.1f} | '
-                  f'Red HP: {stats["red_avg_health"]:5.1f}')
-
-        winner = sim.get_winner()
-        if winner is not None:
-            print(f'\n  *** Mission ended at step {i}: {winner} wins! ***')
-            final_step = i
-            # Duplicate last frame for remaining slots
-            for j in range(i + 1, steps):
-                shutil.copy(last_frame_path,
-                            os.path.join(OUTPUT_DIR, f'frame_{j:03d}.png'))
-            break
-
-    # Phase 4: Analytical report
-    report_path = os.path.join(OUTPUT_DIR, 'tactical_report.txt')
-    generate_report(sim, opt_results, best_params, report_path)
-
-    print(f'\n  Frames  -> {OUTPUT_DIR}/ (frame_000 ... frame_{final_step:03d})')
-    print(f'  Report  -> {report_path}')
-    print('\n  Simulation complete.')
-
-
-if __name__ == '__main__':
-    run_simulation(steps=30, n_opt_iter=10)
+if __name__ == "__main__":
+    try:
+        app = TacticalApp()
+        app.run()
+    except Exception as e:
+        print(f"[!] Critical Error during deployment: {e}")
+        sys.exit(1)

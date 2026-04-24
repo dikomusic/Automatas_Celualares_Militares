@@ -1,0 +1,16 @@
+# Core Engine & Mathematics
+numpy>=1.24.0
+
+# Computer Vision & Map Processing
+opencv-python>=4.8.0
+
+# Real-Time Tactical Visualization
+pygame>=2.5.0
+
+# Data Science & Strategic Analytics
+pandas>=2.0.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Pathfinding Utilities
+scipy>=1.10.0
