@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(python main.py)",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "Bash(python -c \"from src.visualizer import PygameVisualizer; print\\('OK'\\)\")"
     ]
   }
 }

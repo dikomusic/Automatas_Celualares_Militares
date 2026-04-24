@@ -1,0 +1,55 @@
+================================================================
+  SIMULACIÓN TÁCTICA - REPORTE ANALÍTICO
+================================================================
+
+  RESULTADO DE MISIÓN : AZUL VICTORIA
+
+  OPTIMIZACIÓN EVOLUTIVA  (Regla 1/5 de Rechenberg)
+    Iteraciones ejecutadas : 10
+    Ejecuciones exitosas   : 3
+    Tasa de éxito          : 30.0%
+
+  PARÁMETROS TÁCTICOS OPTIMIZADOS
+    Agresividad            : 0.744
+    Búsqueda de cobertura   : 0.642
+    Trabajo en equipo       : 0.087
+
+  COMPOSICIÓN DE FUERZAS
+    Azul (Atacante)
+      Infantería            : 36
+      Francotiradores       : 15
+      Tanques                : 9
+    Rojo (Defensor)
+      Infantería            : 33
+      Francotiradores       : 12
+      Tanques                : 15
+
+  ESTADÍSTICAS DE BAJAS
+    Azul (Atacante)
+      Unidades iniciales    : 60
+      Unidades sobrevivientes: 53
+      Bajas                 : 7  (11.7%)
+    Rojo (Defensor)
+      Unidades iniciales    : 60
+      Unidades sobrevivientes: 49
+      Bajas                 : 11  (18.3%)
+
+  CONSUMO DE RECURSOS (estado final)
+    Munición prom. Azul     : 19.5 / 30
+    Munición prom. Rojo     : 19.7 / 30
+    Moral prom. Azul        : 0.90
+    Moral prom. Rojo        : 0.89
+
+  REGISTRO DE ITERACIONES
+    Iter  1: PERDIÓ | Agresividad=0.74  Cobertura=0.70  Equipo=0.34  |  Bajas Azul: 6
+    Iter  2: PERDIÓ | Agresividad=0.65  Cobertura=0.68  Equipo=0.26  |  Bajas Azul: 7
+    Iter  3: PERDIÓ | Agresividad=0.69  Cobertura=0.57  Equipo=0.34  |  Bajas Azul: 9
+    Iter  4: PERDIÓ | Agresividad=0.26  Cobertura=0.46  Equipo=0.12  |  Bajas Azul: 6
+    Iter  5: PERDIÓ | Agresividad=0.66  Cobertura=0.53  Equipo=0.24  |  Bajas Azul: 9
+    Iter  6: PERDIÓ | Agresividad=0.49  Cobertura=0.40  Equipo=0.38  |  Bajas Azul: 7
+    Iter  7: PERDIÓ | Agresividad=0.66  Cobertura=0.30  Equipo=0.36  |  Bajas Azul: 7
+    Iter  8: GANÓ  | Agresividad=0.76  Cobertura=0.48  Equipo=0.23  |  Bajas Azul: 12
+    Iter  9: GANÓ  | Agresividad=0.84  Cobertura=0.62  Equipo=0.53  |  Bajas Azul: 17
+    Iter 10: GANÓ  | Agresividad=0.74  Cobertura=0.64  Equipo=0.09  |  Bajas Azul: 4
+
+================================================================

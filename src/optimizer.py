@@ -64,9 +64,9 @@ class RechenbergOptimizer:
         best_sim    : CASimulator   (from the winning run, or last run)
         results     : list[dict]    (one entry per iteration)
         """
-        print("\n--- Rechenberg Evolutionary Optimization (1/5 Rule) ---")
-        print(f"  Iterations: {self.n_iterations}  |  Steps/run: {self.sim_steps}")
-        print(f"  Initial sigma: {self.sigma:.4f}\n")
+        print("\n--- Optimización Evolutiva de Rechenberg (Regla 1/5) ---")
+        print(f"  Iteraciones: {self.n_iterations}  |  Pasos/ejecución: {self.sim_steps}")
+        print(f"  Sigma inicial: {self.sigma:.4f}\n")
 
         successes   = 0
         best_params = dict(self.params)
@@ -94,12 +94,12 @@ class RechenbergOptimizer:
                 best_params  = candidate
                 best_sim     = sim
 
-            tag = 'WIN ' if won else 'LOSS'
+            tag = 'GANÓ ' if won else 'PERDIÓ'
             print(f"  Iter {i+1:2d}: {tag} | "
-                  f"Aggr={candidate['aggressiveness']:.2f}  "
-                  f"Cover={candidate['cover_seeking']:.2f}  "
-                  f"Team={candidate['teamwork']:.2f}  |  "
-                  f"Blue casualties: {casualties}")
+                  f"Agresividad={candidate['aggressiveness']:.2f}  "
+                  f"Cobertura={candidate['cover_seeking']:.2f}  "
+                  f"Equipo={candidate['teamwork']:.2f}  |  "
+                  f"Bajas Azul: {casualties}")
 
         # ── Apply 1/5 rule ────────────────────────────────────────────────────
         success_rate = successes / self.n_iterations
@@ -110,9 +110,9 @@ class RechenbergOptimizer:
 
         self.params = best_params
 
-        print(f"\n  Success rate : {success_rate:.1%}")
-        print(f"  Adjusted sigma: {self.sigma:.4f}")
-        print(f"  Best params  : {best_params}")
+        print(f"\n  Tasa de éxito : {success_rate:.1%}")
+        print(f"  Sigma ajustado: {self.sigma:.4f}")
+        print(f"  Mejores params: {best_params}")
 
         # If no run was won, return the sim from the last iteration
         if best_sim is None:
