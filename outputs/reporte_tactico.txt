@@ -1,55 +1,63 @@
 ================================================================
-  SIMULACIÓN TÁCTICA - REPORTE ANALÍTICO
+  SIMULACION TACTICA MILITAR - REPORTE ANALITICO
+  6 Armas del Ejercito de Bolivia
 ================================================================
 
-  RESULTADO DE MISIÓN : AZUL VICTORIA
+  RESULTADO DE MISION : EMPATE
+  Condicion climatica : Despejado
 
-  OPTIMIZACIÓN EVOLUTIVA  (Regla 1/5 de Rechenberg)
+  OPTIMIZACION EVOLUTIVA  (Regla 1/5 de Rechenberg)
     Iteraciones ejecutadas : 10
-    Ejecuciones exitosas   : 3
-    Tasa de éxito          : 30.0%
+    Ejecuciones exitosas   : 0
+    Tasa de exito          : 0.0%
 
-  PARÁMETROS TÁCTICOS OPTIMIZADOS
-    Agresividad            : 0.744
-    Búsqueda de cobertura   : 0.642
-    Trabajo en equipo       : 0.087
+  PARAMETROS TACTICOS OPTIMIZADOS
+    Agresividad            : 0.650
+    Busqueda de cobertura  : 0.500
+    Trabajo en equipo      : 0.300
 
-  COMPOSICIÓN DE FUERZAS
+  COMPOSICION DE FUERZAS  (6 Armas)
     Azul (Atacante)
-      Infantería            : 36
-      Francotiradores       : 15
-      Tanques                : 9
+      Infanteria     : 27
+      Artilleria     : 8
+      Caballeria     : 10
+      Comunicaciones : 5
+      Ingenieria     : 6
+      Logistica      : 4
     Rojo (Defensor)
-      Infantería            : 33
-      Francotiradores       : 12
-      Tanques                : 15
+      Infanteria     : 27
+      Artilleria     : 8
+      Caballeria     : 10
+      Comunicaciones : 5
+      Ingenieria     : 6
+      Logistica      : 4
 
-  ESTADÍSTICAS DE BAJAS
+  ESTADISTICAS DE BAJAS
     Azul (Atacante)
-      Unidades iniciales    : 60
-      Unidades sobrevivientes: 53
-      Bajas                 : 7  (11.7%)
+      Unidades iniciales     : 60
+      Sobrevivientes         : 47
+      Bajas                  : 13  (21.7%)
     Rojo (Defensor)
-      Unidades iniciales    : 60
-      Unidades sobrevivientes: 49
-      Bajas                 : 11  (18.3%)
+      Unidades iniciales     : 60
+      Sobrevivientes         : 15
+      Bajas                  : 45  (75.0%)
 
   CONSUMO DE RECURSOS (estado final)
-    Munición prom. Azul     : 19.5 / 30
-    Munición prom. Rojo     : 19.7 / 30
-    Moral prom. Azul        : 0.90
-    Moral prom. Rojo        : 0.89
+    Municion prom. Azul    : 15.8
+    Municion prom. Rojo    : 17.7
+    Moral prom. Azul       : 0.61
+    Moral prom. Rojo       : 0.97
 
   REGISTRO DE ITERACIONES
-    Iter  1: PERDIÓ | Agresividad=0.74  Cobertura=0.70  Equipo=0.34  |  Bajas Azul: 6
-    Iter  2: PERDIÓ | Agresividad=0.65  Cobertura=0.68  Equipo=0.26  |  Bajas Azul: 7
-    Iter  3: PERDIÓ | Agresividad=0.69  Cobertura=0.57  Equipo=0.34  |  Bajas Azul: 9
-    Iter  4: PERDIÓ | Agresividad=0.26  Cobertura=0.46  Equipo=0.12  |  Bajas Azul: 6
-    Iter  5: PERDIÓ | Agresividad=0.66  Cobertura=0.53  Equipo=0.24  |  Bajas Azul: 9
-    Iter  6: PERDIÓ | Agresividad=0.49  Cobertura=0.40  Equipo=0.38  |  Bajas Azul: 7
-    Iter  7: PERDIÓ | Agresividad=0.66  Cobertura=0.30  Equipo=0.36  |  Bajas Azul: 7
-    Iter  8: GANÓ  | Agresividad=0.76  Cobertura=0.48  Equipo=0.23  |  Bajas Azul: 12
-    Iter  9: GANÓ  | Agresividad=0.84  Cobertura=0.62  Equipo=0.53  |  Bajas Azul: 17
-    Iter 10: GANÓ  | Agresividad=0.74  Cobertura=0.64  Equipo=0.09  |  Bajas Azul: 4
+    Iter  1: PERDIO | Agres=0.68  Cob=0.51  Eq=0.28  |  Bajas Azul: 15
+    Iter  2: PERDIO | Agres=0.53  Cob=0.35  Eq=0.25  |  Bajas Azul: 11
+    Iter  3: PERDIO | Agres=0.78  Cob=0.32  Eq=0.34  |  Bajas Azul: 14
+    Iter  4: PERDIO | Agres=0.63  Cob=0.62  Eq=0.40  |  Bajas Azul: 17
+    Iter  5: PERDIO | Agres=0.68  Cob=0.38  Eq=0.22  |  Bajas Azul: 17
+    Iter  6: PERDIO | Agres=0.69  Cob=0.64  Eq=0.15  |  Bajas Azul: 22
+    Iter  7: PERDIO | Agres=0.55  Cob=0.58  Eq=0.25  |  Bajas Azul: 27
+    Iter  8: PERDIO | Agres=0.56  Cob=0.50  Eq=0.26  |  Bajas Azul: 13
+    Iter  9: PERDIO | Agres=0.52  Cob=0.37  Eq=0.31  |  Bajas Azul: 18
+    Iter 10: PERDIO | Agres=0.75  Cob=0.65  Eq=0.43  |  Bajas Azul: 13
 
 ================================================================

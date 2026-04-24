@@ -12,7 +12,7 @@ import numpy as np
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from src.mapper      import MapLoader
-from src.engine      import CASimulator, UnitType
+from src.engine      import CASimulator, UnitType, Weather, WEATHER_NAMES
 from src.optimizer    import RechenbergOptimizer
 from src.visualizer   import PygameVisualizer
 
@@ -113,81 +113,94 @@ def render_frame(terrain, blue_grid, red_grid, stats, step, save_path):
 # -- Analytical report ---------------------------------------------------------
 def generate_report(sim: CASimulator, opt_results: list,
                     best_params: dict, path: str):
-    units = sim.units
-    blue_all  = [u for u in units if u.team == 0]
-    red_all   = [u for u in units if u.team == 1]
+    units      = sim.units
+    blue_all   = [u for u in units if u.team == 0]
+    red_all    = [u for u in units if u.team == 1]
     blue_alive = [u for u in blue_all if u.alive]
     red_alive  = [u for u in red_all  if u.alive]
 
-    winner     = sim.get_winner() or 'Draw'
-    winner_es = {'Blue': 'Azul', 'Red': 'Rojo', 'Draw': 'Empate'}
+    winner      = sim.get_winner() or 'Draw'
+    winner_es   = {'Blue': 'Azul', 'Red': 'Rojo', 'Draw': 'Empate'}
     winner_name = winner_es.get(winner, winner)
-    wins       = sum(1 for r in opt_results if r['won'])
-    total_iter = len(opt_results)
-    success_rt = wins / total_iter if total_iter else 0.0
+    wins        = sum(1 for r in opt_results if r['won'])
+    total_iter  = len(opt_results)
+    success_rt  = wins / total_iter if total_iter else 0.0
+    weather_str = WEATHER_NAMES.get(sim.weather, str(sim.weather))
 
-    # Count unit types
-    def type_count(team_units, utype):
+    def tc(team_units, utype):
         return sum(1 for u in team_units if u.unit_type == utype)
+
+    arm_names = {
+        UnitType.INFANTRY:       'Infanteria    ',
+        UnitType.ARTILLERY:      'Artilleria    ',
+        UnitType.CAVALRY:        'Caballeria    ',
+        UnitType.COMMUNICATIONS: 'Comunicaciones',
+        UnitType.ENGINEERING:    'Ingenieria    ',
+        UnitType.LOGISTICS:      'Logistica     ',
+    }
 
     sep = '=' * 64
 
     lines = [
         sep,
-        '  SIMULACIÓN TÁCTICA - REPORTE ANALÍTICO',
+        '  SIMULACION TACTICA MILITAR - REPORTE ANALITICO',
+        '  6 Armas del Ejercito de Bolivia',
         sep,
         '',
-        f'  RESULTADO DE MISIÓN : {winner_name.upper()} {"VICTORIA" if winner != "Draw" else ""}',
+        f'  RESULTADO DE MISION : {winner_name.upper()}'
+        f'{"  VICTORIA" if winner != "Draw" else ""}',
+        f'  Condicion climatica : {weather_str}',
         '',
-        '  OPTIMIZACIÓN EVOLUTIVA  (Regla 1/5 de Rechenberg)',
+        '  OPTIMIZACION EVOLUTIVA  (Regla 1/5 de Rechenberg)',
         f'    Iteraciones ejecutadas : {total_iter}',
         f'    Ejecuciones exitosas   : {wins}',
-        f'    Tasa de éxito          : {success_rt:.1%}',
+        f'    Tasa de exito          : {success_rt:.1%}',
         '',
-        '  PARÁMETROS TÁCTICOS OPTIMIZADOS',
+        '  PARAMETROS TACTICOS OPTIMIZADOS',
         f'    Agresividad            : {best_params.get("aggressiveness", 0):.3f}',
-        f'    Búsqueda de cobertura   : {best_params.get("cover_seeking", 0):.3f}',
-        f'    Trabajo en equipo       : {best_params.get("teamwork", 0):.3f}',
+        f'    Busqueda de cobertura  : {best_params.get("cover_seeking", 0):.3f}',
+        f'    Trabajo en equipo      : {best_params.get("teamwork", 0):.3f}',
         '',
-        '  COMPOSICIÓN DE FUERZAS',
+        '  COMPOSICION DE FUERZAS  (6 Armas)',
         '    Azul (Atacante)',
-        f'      Infantería            : {type_count(blue_all, UnitType.INFANTRY)}',
-        f'      Francotiradores       : {type_count(blue_all, UnitType.SNIPER)}',
-        f'      Tanques                : {type_count(blue_all, UnitType.TANK)}',
-        '    Rojo (Defensor)',
-        f'      Infantería            : {type_count(red_all, UnitType.INFANTRY)}',
-        f'      Francotiradores       : {type_count(red_all, UnitType.SNIPER)}',
-        f'      Tanques                : {type_count(red_all, UnitType.TANK)}',
+    ]
+    for ut, lbl in arm_names.items():
+        lines.append(f'      {lbl} : {tc(blue_all, ut)}')
+    lines += ['    Rojo (Defensor)']
+    for ut, lbl in arm_names.items():
+        lines.append(f'      {lbl} : {tc(red_all, ut)}')
+
+    lines += [
         '',
-        '  ESTADÍSTICAS DE BAJAS',
+        '  ESTADISTICAS DE BAJAS',
         '    Azul (Atacante)',
-        f'      Unidades iniciales    : {len(blue_all)}',
-        f'      Unidades sobrevivientes: {len(blue_alive)}',
-        f'      Bajas                 : {len(blue_all) - len(blue_alive)}'
+        f'      Unidades iniciales     : {len(blue_all)}',
+        f'      Sobrevivientes         : {len(blue_alive)}',
+        f'      Bajas                  : {len(blue_all)-len(blue_alive)}'
         f'  ({(len(blue_all)-len(blue_alive))/max(len(blue_all),1)*100:.1f}%)',
         '    Rojo (Defensor)',
-        f'      Unidades iniciales    : {len(red_all)}',
-        f'      Unidades sobrevivientes: {len(red_alive)}',
-        f'      Bajas                 : {len(red_all) - len(red_alive)}'
+        f'      Unidades iniciales     : {len(red_all)}',
+        f'      Sobrevivientes         : {len(red_alive)}',
+        f'      Bajas                  : {len(red_all)-len(red_alive)}'
         f'  ({(len(red_all)-len(red_alive))/max(len(red_all),1)*100:.1f}%)',
         '',
         '  CONSUMO DE RECURSOS (estado final)',
-        f'    Munición prom. Azul     : {np.mean([u.ammo for u in blue_all]):.1f} / 30',
-        f'    Munición prom. Rojo     : {np.mean([u.ammo for u in red_all]):.1f} / 30',
-        f'    Moral prom. Azul        : {np.mean([u.morale for u in blue_alive] or [0]):.2f}',
-        f'    Moral prom. Rojo        : {np.mean([u.morale for u in red_alive]  or [0]):.2f}',
+        f'    Municion prom. Azul    : {np.mean([u.ammo for u in blue_all]):.1f}',
+        f'    Municion prom. Rojo    : {np.mean([u.ammo for u in red_all]):.1f}',
+        f'    Moral prom. Azul       : {np.mean([u.morale for u in blue_alive] or [0]):.2f}',
+        f'    Moral prom. Rojo       : {np.mean([u.morale for u in red_alive]  or [0]):.2f}',
         '',
         '  REGISTRO DE ITERACIONES',
     ]
 
     for r in opt_results:
         p   = r['params']
-        tag = 'GANÓ ' if r['won'] else 'PERDIÓ'
+        tag = 'GANO ' if r['won'] else 'PERDIO'
         lines.append(
             f"    Iter {r['iteration']:2d}: {tag} | "
-            f"Agresividad={p['aggressiveness']:.2f}  "
-            f"Cobertura={p['cover_seeking']:.2f}  "
-            f"Equipo={p['teamwork']:.2f}  |  "
+            f"Agres={p['aggressiveness']:.2f}  "
+            f"Cob={p['cover_seeking']:.2f}  "
+            f"Eq={p['teamwork']:.2f}  |  "
             f"Bajas Azul: {r['casualties']}"
         )
 
@@ -201,57 +214,67 @@ def generate_report(sim: CASimulator, opt_results: list,
 
 
 # -- Main entry point ----------------------------------------------------------
-def run_simulation(steps: int = 60, n_opt_iter: int = 10, mode: str = 'live'):
+def run_simulation(steps: int = 60, n_opt_iter: int = 10, mode: str = 'live',
+                   weather: Weather = Weather.CLEAR, use_editor: bool = False):
     print('=' * 60)
-    print('  Simulador Táctico Militar - Open House 2026')
+    print('  Simulador Tactico Militar - Open House 2026')
+    print('  6 Armas del Ejercito de Bolivia')
     print('=' * 60)
 
-    loader  = MapLoader('assets/map_test.png', grid_width=80)
+    loader  = MapLoader('assets/image.png', grid_width=80)
     terrain = loader.get_grid()
-    print(f'\n  Tamaño de grilla : {terrain.shape[0]} filas x {terrain.shape[1]} columnas')
+    print(f'\n  Grilla : {terrain.shape[0]} filas x {terrain.shape[1]} columnas')
 
     unique, counts = np.unique(terrain, return_counts=True)
+    names_t = {0:'Vacio',1:'Bosque',2:'Obstaculo',3:'Objetivo',4:'Urbano',5:'Suministro'}
     for u, c in zip(unique, counts):
-        names = {0:'Vacío',1:'Bosque',2:'Obstáculo',3:'Objetivo',4:'Urbano',5:'Suministro'}
-        print(f'    {names.get(u, u)}: {c} celdas ({c/terrain.size*100:.1f}%)')
+        print(f'    {names_t.get(int(u), u)}: {c} celdas ({c/terrain.size*100:.1f}%)')
 
     # Phase 1: Rechenberg optimization
     optimizer = RechenbergOptimizer(terrain, n_iterations=n_opt_iter, sim_steps=steps)
     best_params, _, opt_results = optimizer.optimize()
 
-    # Phase 2: Final simulation with best params
-    print(f'\n--- Simulación final con parámetros optimizados ({steps} pasos) ---')
-    sim = CASimulator(terrain, params=best_params)
+    # Phase 2: Final simulation with best params + chosen weather
+    print(f'\n--- Simulacion final ({steps} pasos, clima: {WEATHER_NAMES[weather]}) ---')
+    sim = CASimulator(terrain, params=best_params, weather=weather)
 
-    # Count unit composition
-    blue_units = [u for u in sim.units if u.team == 0]
-    red_units  = [u for u in sim.units if u.team == 1]
-    print(f'\n  Fuerza Azul: {len(blue_units)} unidades '
-          f'(Inf:{sum(1 for u in blue_units if u.unit_type==UnitType.INFANTRY)} '
-          f'Fran:{sum(1 for u in blue_units if u.unit_type==UnitType.SNIPER)} '
-          f'Tnq:{sum(1 for u in blue_units if u.unit_type==UnitType.TANK)})')
-    print(f'  Fuerza Roja: {len(red_units)} unidades '
-          f'(Inf:{sum(1 for u in red_units if u.unit_type==UnitType.INFANTRY)} '
-          f'Fran:{sum(1 for u in red_units if u.unit_type==UnitType.SNIPER)} '
-          f'Tnq:{sum(1 for u in red_units if u.unit_type==UnitType.TANK)})')
+    def arm_count(team_units, utype):
+        return sum(1 for u in team_units if u.unit_type == utype)
+
+    blue_u = [u for u in sim.units if u.team == 0]
+    red_u  = [u for u in sim.units if u.team == 1]
+    for label, lst in [('Azul', blue_u), ('Rojo', red_u)]:
+        inf = arm_count(lst, UnitType.INFANTRY)
+        art = arm_count(lst, UnitType.ARTILLERY)
+        cab = arm_count(lst, UnitType.CAVALRY)
+        com = arm_count(lst, UnitType.COMMUNICATIONS)
+        ing = arm_count(lst, UnitType.ENGINEERING)
+        log = arm_count(lst, UnitType.LOGISTICS)
+        print(f'  {label}: {len(lst)} u  '
+              f'INF:{inf} ART:{art} CAB:{cab} COM:{com} ING:{ing} LOG:{log}')
 
     if mode == 'live':
-        # ── Interactive Pygame mode ──────────────────────────────────────────────
-        print('\n  Abriendo ventana de simulación interactiva...')
-        print('  Controles: ESPACIO=pausa  +/-=velocidad  R=reiniciar  ESC=salir  S=captura\n')
+        print('\n  Abriendo simulacion interactiva...')
+        print('  ESPACIO=pausa  +/-=vel  R=reiniciar  H=calor  ESC=salir  S=captura\n')
 
         viz = PygameVisualizer(terrain, sim, fps=8,
-                               title='Simulador Táctico Militar - Open House 2026')
+                               title='Simulador Tactico Militar - Open House 2026')
+
+        if use_editor:
+            print('  [EDITOR] Configura el mapa, luego ENTER para iniciar\n')
+            custom_units, chosen_weather = viz.run_editor()
+            sim = CASimulator(terrain, params=best_params, weather=chosen_weather,
+                              custom_units=custom_units)
+            viz.sim = sim
+
         sim = viz.run(max_steps=steps)
 
     else:
-        # ── Export PNG frames ────────────────────────────────────────────
         last_frame_path = None
         final_step      = steps - 1
 
         for i in range(steps):
             blue_grid, red_grid, stats = sim.step()
-
             save_path = os.path.join(OUTPUT_DIR, f'frame_{i:03d}.png')
             render_frame(terrain, blue_grid, red_grid, stats, i, save_path)
             last_frame_path = save_path
@@ -264,32 +287,44 @@ def run_simulation(steps: int = 60, n_opt_iter: int = 10, mode: str = 'live'):
 
             winner = sim.get_winner()
             if winner is not None:
-                winner_es = {'Blue': 'Azul', 'Red': 'Rojo', 'Draw': 'Empate'}
-                print(f'\n  *** Misión terminada en paso {i}: {winner_es.get(winner, winner)} gana! ***')
+                wes = {'Blue': 'Azul', 'Red': 'Rojo', 'Draw': 'Empate'}
+                print(f'\n  *** Mision terminada paso {i}: {wes.get(winner, winner)} gana! ***')
                 final_step = i
                 for j in range(i + 1, steps):
                     shutil.copy(last_frame_path,
                                 os.path.join(OUTPUT_DIR, f'frame_{j:03d}.png'))
                 break
 
-        print(f'\n  Frames  -> {OUTPUT_DIR}/ (frame_000 ... frame_{final_step:03d})')
+        print(f'\n  Frames -> {OUTPUT_DIR}/ (frame_000 ... frame_{final_step:03d})')
 
     # Phase 3: Analytical report
     report_path = os.path.join(OUTPUT_DIR, 'reporte_tactico.txt')
     generate_report(sim, opt_results, best_params, report_path)
     print(f'  Reporte -> {report_path}')
-    print('\n  Simulación completa.')
+    print('\n  Simulacion completa.')
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        description='Simulador Táctico Militar de Autómatas Celulares - Open House 2026')
+        description='Simulador Tactico Militar de Automatas Celulares - Open House 2026')
     parser.add_argument('--mode', choices=['live', 'export'], default='live',
-                        help='live = ventana Pygame (por defecto), export = imágenes PNG')
+                        help='live = ventana Pygame (default), export = PNG frames')
     parser.add_argument('--steps', type=int, default=60,
-                        help='Número de pasos de simulación (por defecto: 60)')
+                        help='Pasos de simulacion (default: 60)')
     parser.add_argument('--opt-iter', type=int, default=10,
-                        help='Iteraciones de optimización Rechenberg (por defecto: 10)')
+                        help='Iteraciones Rechenberg (default: 10)')
+    parser.add_argument('--weather',
+                        choices=['clear','rain','fog','cold','heat'], default='clear',
+                        help='Condicion climatica inicial')
+    parser.add_argument('--editor', action='store_true',
+                        help='Abrir editor de mapa antes de la simulacion')
     args = parser.parse_args()
 
-    run_simulation(steps=args.steps, n_opt_iter=args.opt_iter, mode=args.mode)
+    weather_map = {
+        'clear': Weather.CLEAR, 'rain': Weather.RAIN, 'fog': Weather.FOG,
+        'cold':  Weather.COLD,  'heat': Weather.HEAT,
+    }
+    run_simulation(
+        steps=args.steps, n_opt_iter=args.opt_iter, mode=args.mode,
+        weather=weather_map[args.weather], use_editor=args.editor,
+    )

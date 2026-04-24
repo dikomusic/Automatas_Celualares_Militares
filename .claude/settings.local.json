@@ -3,7 +3,11 @@
     "allow": [
       "Bash(python main.py)",
       "Bash(python -c ' *)",
-      "Bash(python -c \"from src.visualizer import PygameVisualizer; print\\('OK'\\)\")"
+      "Bash(python -c \"from src.visualizer import PygameVisualizer; print\\('OK'\\)\")",
+      "Bash(python -c \"from src.engine import CASimulator, UnitType, UnitState, Weather, WEATHER_NAMES; import numpy as np; t=np.zeros\\(\\(10,10\\),int\\); sim=CASimulator\\(t\\); print\\('Units:', len\\(sim.units\\)\\); print\\('Arms:', [u.unit_type.name for u in sim.units[:6]]\\); print\\('Weather:', WEATHER_NAMES[Weather.FOG]\\); print\\('States:', [s.name for s in UnitState]\\)\")",
+      "Bash(python -c \"from src.visualizer import PygameVisualizer\")",
+      "Bash(python main.py --editor --steps 30 --opt-iter 3)",
+      "Bash(timeout 8)"
     ]
   }
 }

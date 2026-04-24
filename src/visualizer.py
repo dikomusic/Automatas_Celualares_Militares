@@ -2,8 +2,9 @@ import math
 import pygame
 import numpy as np
 from src.engine import (
-    CASimulator, UnitType,
+    CASimulator, UnitType, UnitState, Weather, WEATHER_NAMES, WEATHER_FX,
     EMPTY, FOREST, OBSTACLE, OBJECTIVE, URBAN, SUPPLY,
+    Unit,
 )
 
 # ── Terrain palette ───────────────────────────────────────────────────────────
@@ -28,19 +29,69 @@ YELLOW_AMMO   = (225, 195,  45)
 BLUE_BRIGHT   = (55,  155, 255)
 RED_BRIGHT    = (255,  62,  62)
 
-# ── Unit body colours ─────────────────────────────────────────────────────────
+# ── Unit body colours — 6 arms × 2 teams ─────────────────────────────────────
 UNIT_BODY = {
-    (0, UnitType.INFANTRY): (60,  140, 255),   # Blue infantry
-    (0, UnitType.SNIPER):   (55,  215, 170),   # Blue sniper — teal
-    (0, UnitType.TANK):     (28,   75, 195),   # Blue tank   — navy
-    (1, UnitType.INFANTRY): (255,  60,  60),   # Red infantry
-    (1, UnitType.SNIPER):   (255, 135,  55),   # Red sniper  — orange
-    (1, UnitType.TANK):     (175,  28,  28),   # Red tank    — dark red
+    (0, UnitType.INFANTRY):       ( 60, 140, 255),  # Blue infantry
+    (0, UnitType.ARTILLERY):      ( 55, 215, 170),  # Blue artillery  — teal
+    (0, UnitType.CAVALRY):        ( 28,  75, 195),  # Blue cavalry    — navy
+    (0, UnitType.COMMUNICATIONS): ( 90, 220, 230),  # Blue comms      — cyan
+    (0, UnitType.ENGINEERING):    (115, 180,  80),  # Blue engineering— olive
+    (0, UnitType.LOGISTICS):      (200, 190,  50),  # Blue logistics  — gold
+    (1, UnitType.INFANTRY):       (255,  60,  60),  # Red infantry
+    (1, UnitType.ARTILLERY):      (255, 135,  55),  # Red artillery   — orange
+    (1, UnitType.CAVALRY):        (175,  28,  28),  # Red cavalry     — dark red
+    (1, UnitType.COMMUNICATIONS): (220,  80, 200),  # Red comms       — magenta
+    (1, UnitType.ENGINEERING):    (180, 130,  40),  # Red engineering — brown
+    (1, UnitType.LOGISTICS):      (200, 170,  90),  # Red logistics   — tan
 }
 HELMET_BLUE = (25,  55, 135)
 HELMET_RED  = (115, 18,  18)
 SKIN_COLOR  = (218, 175, 135)
 METAL_COLOR = (155, 155, 155)
+
+# State overlay colours
+STATE_OVERLAY = {
+    UnitState.SUPPRESSED:   (255, 220,   0, 160),  # yellow flash
+    UnitState.FIXED:        (255, 100,   0, 140),  # orange
+    UnitState.INHIBITED:    (200,   0, 200, 140),  # magenta
+    UnitState.RETREATING:   (255, 255, 255, 120),  # white
+    UnitState.REORGANIZING: (  0, 220, 100, 130),  # green
+    UnitState.DEFENSIVE:    (  0, 160, 255, 110),  # blue tint
+}
+
+# Arm labels for UI
+ARM_LABELS = {
+    UnitType.INFANTRY:       'INF',
+    UnitType.ARTILLERY:      'ART',
+    UnitType.CAVALRY:        'CAB',
+    UnitType.COMMUNICATIONS: 'COM',
+    UnitType.ENGINEERING:    'ING',
+    UnitType.LOGISTICS:      'LOG',
+}
+
+ARM_FULL = {
+    UnitType.INFANTRY:       'Infanteria',
+    UnitType.ARTILLERY:      'Artilleria',
+    UnitType.CAVALRY:        'Caballeria',
+    UnitType.COMMUNICATIONS: 'Comunicaciones',
+    UnitType.ENGINEERING:    'Ingenieria',
+    UnitType.LOGISTICS:      'Logistica',
+}
+
+WEATHER_ICON = {
+    Weather.CLEAR: 'SOL',
+    Weather.RAIN:  'LLU',
+    Weather.FOG:   'NIE',
+    Weather.COLD:  'FRI',
+    Weather.HEAT:  'CAL',
+}
+WEATHER_COLOR = {
+    Weather.CLEAR: (255, 230,  60),
+    Weather.RAIN:  ( 80, 140, 255),
+    Weather.FOG:   (170, 170, 200),
+    Weather.COLD:  (140, 200, 255),
+    Weather.HEAT:  (255, 120,  40),
+}
 
 
 # ── Particle ──────────────────────────────────────────────────────────────────
@@ -88,7 +139,7 @@ class Tracer:
 class PygameVisualizer:
     """WorldBox-inspired real-time Pygame visualizer for the military CA sim."""
 
-    PANEL_WIDTH   = 285
+    PANEL_WIDTH   = 300
     MIN_CELL      = 5
     MAX_CELL      = 18
     DEFAULT_CELL  = 10
@@ -353,6 +404,114 @@ class PygameVisualizer:
             pygame.draw.polygon(surf, body, pts)
             pygame.draw.polygon(surf, helmet, pts, 1)
 
+    def _draw_artillery(self, surf, cx, cy, body, anim):
+        """Artillery: wide base + long upward barrel."""
+        c    = self.cell
+        half = c // 2
+        if c >= 7:
+            # Base platform
+            pygame.draw.rect(surf, body, (cx - half + 1, cy, c - 2, half - 1))
+            pygame.draw.line(surf, METAL_COLOR, (cx - half + 2, cy), (cx + half - 2, cy))
+            # Barrel (points upward, slight left lean each frame)
+            bx = cx - anim
+            pygame.draw.line(surf, METAL_COLOR, (cx, cy), (bx, cy - half - 3), 3)
+            pygame.draw.circle(surf, (60, 60, 60), (bx, cy - half - 3), 2)
+            # Wheels
+            pygame.draw.circle(surf, (50, 50, 50), (cx - half + 3, cy + half - 2), 3)
+            pygame.draw.circle(surf, (50, 50, 50), (cx + half - 3, cy + half - 2), 3)
+        else:
+            # Small: pentagon
+            pts = [(cx, cy-half), (cx+half, cy-half//2), (cx+half//2, cy+half),
+                   (cx-half//2, cy+half), (cx-half, cy-half//2)]
+            pygame.draw.polygon(surf, body, pts)
+
+    def _draw_cavalry(self, surf, cx, cy, body, helmet, anim):
+        """Cavalry: rider on horse silhouette."""
+        c    = self.cell
+        half = c // 2
+        if c >= 8:
+            horse_col = tuple(max(0, v - 30) for v in body)
+            # Horse body
+            pygame.draw.ellipse(surf, horse_col,
+                                (cx - half, cy + 1, c, half - 1))
+            # Legs (animated)
+            leg_y = cy + half
+            offsets = [(-3, 0), (-1, 0), (1, 0), (3, 0)]
+            for i, (ox, _) in enumerate(offsets):
+                stride = (anim + i) % 2
+                pygame.draw.line(surf, horse_col,
+                                 (cx + ox, leg_y), (cx + ox, leg_y + 3 - stride), 2)
+            # Rider (small)
+            hr = max(2, c // 6)
+            hy = cy - hr
+            pygame.draw.circle(surf, helmet,     (cx, hy), hr + 1)
+            pygame.draw.circle(surf, SKIN_COLOR, (cx, hy), hr)
+            pygame.draw.rect(surf, body, (cx - 2, hy + hr, 4, half - 1))
+        else:
+            pygame.draw.ellipse(surf, body, (cx - half + 1, cy - 2, c - 2, half + 2))
+
+    def _draw_communications(self, surf, cx, cy, body, anim):
+        """Comms: small body + tall antenna with blinking tip."""
+        c    = self.cell
+        half = c // 2
+        if c >= 7:
+            # Box body
+            pygame.draw.rect(surf, body, (cx - 3, cy - 1, 7, half))
+            # Antenna mast
+            pygame.draw.line(surf, METAL_COLOR, (cx, cy - 1), (cx, cy - half - 2), 2)
+            # Dish arms
+            pygame.draw.line(surf, METAL_COLOR, (cx, cy - half + 1),
+                             (cx - 4, cy - half - 1), 1)
+            pygame.draw.line(surf, METAL_COLOR, (cx, cy - half + 1),
+                             (cx + 4, cy - half - 1), 1)
+            # Blinking signal tip
+            tip_col = (  0, 255, 100) if anim == 0 else (0, 120, 60)
+            pygame.draw.circle(surf, tip_col, (cx, cy - half - 2), 2)
+        else:
+            pts = [(cx, cy-half), (cx+half, cy), (cx, cy+half), (cx-half, cy)]
+            pygame.draw.polygon(surf, body, pts)
+
+    def _draw_engineering(self, surf, cx, cy, body, anim):
+        """Engineering: body + wrench/tool cross."""
+        c    = self.cell
+        half = c // 2
+        if c >= 7:
+            pygame.draw.rect(surf, body, (cx - 3, cy - 2, 7, half + 2))
+            # Tool cross (wrench suggestion)
+            tool = tuple(min(255, v + 40) for v in body)
+            pygame.draw.line(surf, tool, (cx - half + 2, cy + 2),
+                             (cx + half - 2, cy + 2), 2)
+            pygame.draw.line(surf, tool, (cx, cy - half + 2),
+                             (cx, cy + 2), 2)
+            # Animated gear dot
+            angle = anim * math.pi
+            gx = cx + int(3 * math.cos(angle))
+            gy = cy + 2 + int(3 * math.sin(angle))
+            pygame.draw.circle(surf, METAL_COLOR, (gx, gy), 1)
+        else:
+            pygame.draw.rect(surf, body, (cx - half + 1, cy - half + 1, c - 2, c - 2))
+            pygame.draw.line(surf, METAL_COLOR, (cx - half + 2, cy), (cx + half - 2, cy), 1)
+            pygame.draw.line(surf, METAL_COLOR, (cx, cy - half + 2), (cx, cy + half - 2), 1)
+
+    def _draw_logistics(self, surf, cx, cy, body, anim):
+        """Logistics: truck/box with wheels."""
+        c    = self.cell
+        half = c // 2
+        if c >= 7:
+            # Cargo box
+            cargo = tuple(min(255, v + 20) for v in body)
+            pygame.draw.rect(surf, cargo, (cx - half + 1, cy - half + 2, c - 2, half + 1))
+            pygame.draw.rect(surf, body, (cx - half + 1, cy - half + 2, c - 2, half + 1), 1)
+            # Cab
+            pygame.draw.rect(surf, body, (cx + 1, cy - half + 1, half - 1, half))
+            # Wheels (animated roll)
+            woff = anim * 1
+            for wx2 in [cx - half + 3, cx + half - 3]:
+                pygame.draw.circle(surf, (40, 40, 40), (wx2 + woff, cy + 3), 3)
+                pygame.draw.circle(surf, (90, 90, 90), (wx2 + woff, cy + 3), 1)
+        else:
+            pygame.draw.rect(surf, body, (cx - half + 1, cy - half + 1, c - 2, c - 2))
+
     def _draw_tank(self, surf, cx, cy, body, anim):
         """Chunky tank with hull, tracks, turret and rotating barrel."""
         c    = self.cell
@@ -491,7 +650,7 @@ class PygameVisualizer:
     # ── Draw all units ────────────────────────────────────────────────────────
 
     def _draw_units(self, surface):
-        half = self.cell // 2
+        half  = self.cell // 2
         ticks = pygame.time.get_ticks()
 
         for u in self.sim.units:
@@ -509,10 +668,26 @@ class PygameVisualizer:
 
             if u.unit_type == UnitType.INFANTRY:
                 self._draw_infantry(surface, cx, cy, body, helmet, self.anim_frame)
-            elif u.unit_type == UnitType.SNIPER:
-                self._draw_sniper(surface, cx, cy, body, helmet, self.anim_frame)
-            elif u.unit_type == UnitType.TANK:
-                self._draw_tank(surface, cx, cy, body, self.anim_frame)
+            elif u.unit_type == UnitType.ARTILLERY:
+                self._draw_artillery(surface, cx, cy, body, self.anim_frame)
+            elif u.unit_type == UnitType.CAVALRY:
+                self._draw_cavalry(surface, cx, cy, body, helmet, self.anim_frame)
+            elif u.unit_type == UnitType.COMMUNICATIONS:
+                self._draw_communications(surface, cx, cy, body, self.anim_frame)
+            elif u.unit_type == UnitType.ENGINEERING:
+                self._draw_engineering(surface, cx, cy, body, self.anim_frame)
+            elif u.unit_type == UnitType.LOGISTICS:
+                self._draw_logistics(surface, cx, cy, body, self.anim_frame)
+
+            # State overlay (coloured ring / flash)
+            ov = STATE_OVERLAY.get(u.state)
+            if ov:
+                blink_states = (UnitState.SUPPRESSED, UnitState.INHIBITED)
+                if u.state not in blink_states or (ticks // 200) % 2 == 0:
+                    ov_surf = pygame.Surface((self.cell, self.cell), pygame.SRCALPHA)
+                    pygame.draw.rect(ov_surf, ov, (0, 0, self.cell, self.cell),
+                                     border_radius=2)
+                    surface.blit(ov_surf, (cx - half, cy - half))
 
             # HP bar below unit
             if u.health < u.max_health * 0.99:
@@ -606,45 +781,32 @@ class PygameVisualizer:
             surface.blit(val_surf, (bar_x + bar_w2 + 3, y))
             y += 11
 
-        def draw_unit_type_row(team_idx, inf_col, snp_col, tnk_col):
-            """Draw infantry / sniper / tank counts with mini icons."""
+        def draw_unit_type_row(team_idx):
+            """Draw all 6 arm counts in 2 rows of 3."""
             nonlocal y
             counts = {ut: 0 for ut in UnitType}
             for u in self.sim.units:
                 if u.team == team_idx:
                     counts[u.unit_type] += 1
 
-            specs = [
-                (UnitType.INFANTRY, 'Inf', inf_col, 'square'),
-                (UnitType.SNIPER,   'Fra', snp_col, 'diamond'),
-                (UnitType.TANK,     'Tnq', tnk_col, 'hex'),
-            ]
-            col_w = bw // 3
-            for idx, (ut, lbl, col, shape) in enumerate(specs):
-                ix = x + idx * col_w
-                iy = y + 7
-                # Mini icon
-                if shape == 'square':
+            arm_col = lambda ut: UNIT_BODY.get((team_idx, ut), (128, 128, 128))
+            specs = list(UnitType)
+            col_w  = bw // 3
+
+            for row_idx in range(2):
+                for col_idx in range(3):
+                    ut  = specs[row_idx * 3 + col_idx]
+                    col = arm_col(ut)
+                    ix  = x + col_idx * col_w
+                    iy  = y + 7
                     pygame.draw.rect(surface, col, (ix, iy - 4, 8, 8))
                     pygame.draw.rect(surface, TEXT_WHITE, (ix, iy - 4, 8, 8), 1)
-                elif shape == 'diamond':
-                    pts = [(ix+4, iy-5), (ix+8, iy), (ix+4, iy+5), (ix, iy)]
-                    pygame.draw.polygon(surface, col, pts)
-                    pygame.draw.polygon(surface, TEXT_WHITE, pts, 1)
-                else:
-                    pts = [(ix + 4 + int(5*math.cos(math.pi/6 + k*math.pi/3)),
-                            iy     + int(5*math.sin(math.pi/6 + k*math.pi/3)))
-                           for k in range(6)]
-                    pygame.draw.polygon(surface, col, pts)
-                    pygame.draw.polygon(surface, TEXT_WHITE, pts, 1)
-                txt = f' {lbl}:{counts[ut]}'
-                surface.blit(self.font_tiny.render(txt, True, col), (ix + 10, y + 1))
-            y += 16
+                    lbl = f' {ARM_LABELS[ut]}:{counts[ut]}'
+                    surface.blit(self.font_tiny.render(lbl, True, col), (ix + 10, y + 1))
+                y += 14
 
-        def team_block(prefix, label, label_color, team_idx,
-                       inf_col, snp_col, tnk_col):
+        def team_block(prefix, label, label_color, team_idx):
             nonlocal y
-            # Title + alive count on same line
             alive = stats[f'{prefix}_alive']
             title_surf = self.font_med.render(label, True, label_color)
             surface.blit(title_surf, (x, y))
@@ -652,34 +814,36 @@ class PygameVisualizer:
             surface.blit(alive_surf, (x + bw - alive_surf.get_width(), y + 2))
             y += 18
 
-            # Unit-type breakdown row
-            draw_unit_type_row(team_idx, inf_col, snp_col, tnk_col)
+            draw_unit_type_row(team_idx)
 
-            # Stat bars
             hp     = stats[f'{prefix}_avg_health']
             ammo   = stats[f'{prefix}_avg_ammo']
             morale = stats[f'{prefix}_avg_morale']
             hp_col = (GREEN_HP if hp > 80
                       else (255, 160, 0) if hp > 40
                       else RED_BRIGHT)
-            draw_bar('Salud   ', min(1.0, hp / 200.0), hp_col,   f'{hp:.0f}')
-            draw_bar('Municion', min(1.0, ammo / 30.0), YELLOW_AMMO, f'{ammo:.1f}')
+            draw_bar('Salud   ', min(1.0, hp / 200.0), hp_col,        f'{hp:.0f}')
+            draw_bar('Municion', min(1.0, ammo / 30.0), YELLOW_AMMO,  f'{ammo:.1f}')
             draw_bar('Moral   ', min(1.0, morale),      (95, 195, 255), f'{morale:.2f}')
             y += 4
 
+        # ── Weather indicator ─────────────────────────────────────────────
+        wx_col  = WEATHER_COLOR.get(self.sim.weather, TEXT_WHITE)
+        wx_icon = WEATHER_ICON.get(self.sim.weather, '?')
+        wx_name = WEATHER_NAMES.get(self.sim.weather, '')
+        wx_surf = self.font_med.render(f'[{wx_icon}] {wx_name}', True, wx_col)
+        surface.blit(wx_surf, (x, y))
+        y += 18
+        pygame.draw.line(surface, PANEL_BORDER, (x, y), (x + bw, y), 1)
+        y += 8
+
         # ── Blue team ─────────────────────────────────────────────────────
-        team_block('blue', 'AZUL (ATACANTE)', (60, 140, 255), 0,
-                   inf_col=(60, 140, 255),
-                   snp_col=(55, 215, 170),
-                   tnk_col=(28,  75, 195))
+        team_block('blue', 'AZUL (ATACANTE)', (60, 140, 255), 0)
         pygame.draw.line(surface, PANEL_BORDER, (x, y), (x + bw, y), 1)
         y += 8
 
         # ── Red team ──────────────────────────────────────────────────────
-        team_block('red', 'ROJO (DEFENSOR)', RED_BRIGHT, 1,
-                   inf_col=(255,  60,  60),
-                   snp_col=(255, 135,  55),
-                   tnk_col=(175,  28,  28))
+        team_block('red', 'ROJO (DEFENSOR)', RED_BRIGHT, 1)
         pygame.draw.line(surface, PANEL_BORDER, (x, y), (x + bw, y), 1)
         y += 8
 
@@ -740,6 +904,234 @@ class PygameVisualizer:
             surface.blit(banner_surf, (x - 8, by_ - 4))
             pygame.draw.rect(surface, bc, (x - 8, by_ - 4, 256, 46), 2, border_radius=5)
             surface.blit(self.font_big.render(bn, True, bc), (x, by_ + 6))
+
+    # ── Editor / setup mode ───────────────────────────────────────────────────
+
+    def run_editor(self) -> tuple:
+        """
+        Pre-simulation setup screen.
+        Returns (custom_units, weather) when the user presses ENTER to start.
+
+        Controls
+        --------
+        1-6        Select arm  (1=Inf 2=Art 3=Cab 4=Com 5=Ing 6=Log)
+        B / R      Select team (Blue / Red)
+        O          Toggle obstacle-placement mode
+        D          Toggle defensive state for placed units
+        W          Cycle weather
+        Left-click  Place unit / obstacle on map
+        Right-click Remove unit / obstacle at cell
+        ENTER / S  Start simulation
+        ESC        Start with default units (no changes)
+        """
+        arm_order   = list(UnitType)
+        sel_arm     = UnitType.INFANTRY
+        sel_team    = 0
+        place_obs   = False
+        sel_def     = False
+        cur_weather = self.sim.weather
+        custom_units: list[Unit] = list(self.sim.units)  # start from default placement
+
+        font_title = pygame.font.SysFont('Consolas', 17, bold=True)
+        font_info  = pygame.font.SysFont('Consolas', 13)
+        font_tiny2 = pygame.font.SysFont('Consolas', 11)
+
+        # Working copy of terrain so we can preview obstacle edits
+        edit_terrain = self.sim.terrain.copy()
+
+        clock = pygame.time.Clock()
+        running = True
+
+        while running:
+            clock.tick(30)
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        return custom_units, cur_weather
+                    elif event.key in (pygame.K_RETURN, pygame.K_s):
+                        self.sim.weather  = cur_weather
+                        self.sim.terrain  = edit_terrain
+                        return custom_units, cur_weather
+                    elif event.key == pygame.K_b:
+                        sel_team = 0
+                    elif event.key == pygame.K_r:
+                        sel_team = 1
+                    elif event.key == pygame.K_o:
+                        place_obs = not place_obs
+                    elif event.key == pygame.K_d:
+                        sel_def = not sel_def
+                    elif event.key == pygame.K_w:
+                        cur_weather = Weather((int(cur_weather) + 1) % len(Weather))
+                    elif event.key in (pygame.K_1, pygame.K_KP1):
+                        sel_arm = UnitType.INFANTRY
+                    elif event.key in (pygame.K_2, pygame.K_KP2):
+                        sel_arm = UnitType.ARTILLERY
+                    elif event.key in (pygame.K_3, pygame.K_KP3):
+                        sel_arm = UnitType.CAVALRY
+                    elif event.key in (pygame.K_4, pygame.K_KP4):
+                        sel_arm = UnitType.COMMUNICATIONS
+                    elif event.key in (pygame.K_5, pygame.K_KP5):
+                        sel_arm = UnitType.ENGINEERING
+                    elif event.key in (pygame.K_6, pygame.K_KP6):
+                        sel_arm = UnitType.LOGISTICS
+                    elif event.key == pygame.K_c:
+                        custom_units.clear()
+                        edit_terrain = self.sim.base_terrain.copy()
+
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    mx, my = event.pos
+                    if mx >= self.map_w:
+                        continue
+                    col = mx // self.cell
+                    row = my // self.cell
+                    if not (0 <= row < self.rows and 0 <= col < self.cols):
+                        continue
+
+                    if event.button == 3:  # Right-click: remove
+                        custom_units = [u for u in custom_units
+                                        if not (u.row == row and u.col == col)]
+                        if edit_terrain[row, col] == OBSTACLE:
+                            edit_terrain[row, col] = EMPTY
+                    elif event.button == 1:  # Left-click: place
+                        if place_obs:
+                            t = edit_terrain[row, col]
+                            edit_terrain[row, col] = EMPTY if t == OBSTACLE else OBSTACLE
+                        else:
+                            if edit_terrain[row, col] == OBSTACLE:
+                                continue
+                            custom_units = [u for u in custom_units
+                                            if not (u.row == row and u.col == col)]
+                            from src.engine import UnitState as _US
+                            new_u = Unit(team=sel_team, row=row, col=col,
+                                         unit_type=sel_arm)
+                            if sel_def:
+                                new_u.state = _US.DEFENSIVE
+                            custom_units.append(new_u)
+
+            # ── Draw editor frame ────────────────────────────────────────
+            self.screen.fill(BG_COLOR)
+
+            # Terrain (with edits)
+            for r in range(self.rows):
+                for c2 in range(self.cols):
+                    t    = int(edit_terrain[r, c2])
+                    base = TERRAIN_BASE.get(t, TERRAIN_BASE[EMPTY])
+                    pygame.draw.rect(self.screen, base,
+                                     (c2 * self.cell, r * self.cell, self.cell, self.cell))
+
+            # Grid lines
+            if self.cell >= 7:
+                gc = (35, 40, 50)
+                for r in range(self.rows + 1):
+                    pygame.draw.line(self.screen, gc,
+                                     (0, r * self.cell), (self.map_w, r * self.cell))
+                for c2 in range(self.cols + 1):
+                    pygame.draw.line(self.screen, gc,
+                                     (c2 * self.cell, 0), (c2 * self.cell, self.map_h))
+
+            # Placed units
+            for u in custom_units:
+                cx, cy   = self._center(u.row, u.col)
+                body_col = UNIT_BODY.get((u.team, u.unit_type), (128, 128, 128))
+                pygame.draw.circle(self.screen, body_col, (cx, cy), max(3, self.cell // 2 - 1))
+                lbl = font_tiny2.render(ARM_LABELS[u.unit_type], True, TEXT_WHITE)
+                self.screen.blit(lbl, (cx - lbl.get_width() // 2, cy - lbl.get_height() // 2))
+
+            # Mouse hover highlight
+            mx, my = pygame.mouse.get_pos()
+            if mx < self.map_w:
+                hc = (mx // self.cell) * self.cell
+                hr = (my // self.cell) * self.cell
+                hl = pygame.Surface((self.cell, self.cell), pygame.SRCALPHA)
+                hcol = (255, 80, 80, 80) if place_obs else (
+                    (60, 140, 255, 80) if sel_team == 0 else (255, 60, 60, 80))
+                hl.fill(hcol)
+                self.screen.blit(hl, (hc, hr))
+
+            # ── Side panel ────────────────────────────────────────────────
+            px = self.map_w
+            pygame.draw.rect(self.screen, PANEL_BG, (px, 0, self.PANEL_WIDTH, self.win_h))
+            pygame.draw.line(self.screen, PANEL_BORDER, (px, 0), (px, self.win_h), 2)
+
+            ex, ey = px + 12, 14
+            self.screen.blit(font_title.render('MODO EDITOR', True, GOLD), (ex, ey))
+            ey += 26
+
+            pygame.draw.line(self.screen, PANEL_BORDER, (ex, ey), (ex + 270, ey), 1)
+            ey += 8
+
+            def erow(txt, col=TEXT_DIM):
+                nonlocal ey
+                self.screen.blit(font_info.render(txt, True, col), (ex, ey))
+                ey += 16
+
+            # Team
+            t_col = (60, 140, 255) if sel_team == 0 else RED_BRIGHT
+            t_lbl = 'AZUL' if sel_team == 0 else 'ROJO'
+            erow(f'Equipo : {t_lbl}  (B/R)', t_col)
+
+            # Arm
+            arm_col2 = UNIT_BODY.get((sel_team, sel_arm), TEXT_WHITE)
+            erow(f'Arma   : {ARM_FULL[sel_arm]}', arm_col2)
+
+            # Mode
+            mode_lbl = 'OBSTACULO' if place_obs else 'UNIDAD'
+            mode_col = (255, 200, 0) if place_obs else TEXT_WHITE
+            erow(f'Modo   : {mode_lbl}  (O)', mode_col)
+
+            # Defensive
+            def_lbl = 'SI' if sel_def else 'NO'
+            erow(f'Defensivo: {def_lbl}  (D)', (0, 200, 255) if sel_def else TEXT_DIM)
+
+            # Weather
+            wx_col2 = WEATHER_COLOR.get(cur_weather, TEXT_WHITE)
+            erow(f'Clima  : {WEATHER_NAMES[cur_weather]}  (W)', wx_col2)
+
+            ey += 4
+            pygame.draw.line(self.screen, PANEL_BORDER, (ex, ey), (ex + 270, ey), 1)
+            ey += 8
+
+            # Arm selector
+            self.screen.blit(font_info.render('ARMAS  (teclas 1-6)', True, TEXT_WHITE), (ex, ey))
+            ey += 16
+            for i, ut in enumerate(arm_order):
+                col3 = UNIT_BODY.get((sel_team, ut), TEXT_DIM)
+                marker = '>' if ut == sel_arm else ' '
+                self.screen.blit(font_tiny2.render(
+                    f'{marker} {i+1}. {ARM_FULL[ut]}', True,
+                    col3 if ut == sel_arm else TEXT_DIM), (ex + 4, ey))
+                ey += 14
+
+            ey += 4
+            pygame.draw.line(self.screen, PANEL_BORDER, (ex, ey), (ex + 270, ey), 1)
+            ey += 8
+
+            # Unit count summary
+            blue_n = sum(1 for u in custom_units if u.team == 0)
+            red_n  = sum(1 for u in custom_units if u.team == 1)
+            erow(f'Azul: {blue_n} unidades', (60, 140, 255))
+            erow(f'Rojo: {red_n} unidades',  RED_BRIGHT)
+
+            ey += 4
+            pygame.draw.line(self.screen, PANEL_BORDER, (ex, ey), (ex + 270, ey), 1)
+            ey += 8
+
+            # Controls help
+            for ctrl in [
+                'Click izq  Colocar',
+                'Click der  Borrar',
+                'C          Limpiar todo',
+                'ENTER/S    Iniciar sim',
+                'ESC        Usar default',
+            ]:
+                self.screen.blit(font_tiny2.render(ctrl, True, TEXT_DIM), (ex + 2, ey))
+                ey += 13
+
+            pygame.display.flip()
+
+        return custom_units, cur_weather
 
     # ── Main loop ─────────────────────────────────────────────────────────────
 
