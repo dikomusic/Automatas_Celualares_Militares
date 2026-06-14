@@ -18,46 +18,46 @@
 
   COMPOSICION DE FUERZAS  (6 Armas)
     Azul (Atacante)
-      Infanteria     : 27
-      Artilleria     : 8
-      Caballeria     : 10
-      Comunicaciones : 5
-      Ingenieria     : 6
+      Infanteria     : 6
+      Artilleria     : 6
+      Caballeria     : 4
+      Comunicaciones : 2
+      Ingenieria     : 7
       Logistica      : 4
     Rojo (Defensor)
-      Infanteria     : 27
-      Artilleria     : 8
-      Caballeria     : 10
+      Infanteria     : 5
+      Artilleria     : 4
+      Caballeria     : 5
       Comunicaciones : 5
-      Ingenieria     : 6
-      Logistica      : 4
+      Ingenieria     : 5
+      Logistica      : 6
 
   ESTADISTICAS DE BAJAS
     Azul (Atacante)
-      Unidades iniciales     : 60
-      Sobrevivientes         : 47
-      Bajas                  : 13  (21.7%)
+      Unidades iniciales     : 29
+      Sobrevivientes         : 10
+      Bajas                  : 19  (65.5%)
     Rojo (Defensor)
-      Unidades iniciales     : 60
-      Sobrevivientes         : 15
-      Bajas                  : 45  (75.0%)
+      Unidades iniciales     : 30
+      Sobrevivientes         : 23
+      Bajas                  : 7  (23.3%)
 
   CONSUMO DE RECURSOS (estado final)
-    Municion prom. Azul    : 15.8
-    Municion prom. Rojo    : 17.7
-    Moral prom. Azul       : 0.61
-    Moral prom. Rojo       : 0.97
+    Municion prom. Azul    : 14.7
+    Municion prom. Rojo    : 19.9
+    Moral prom. Azul       : 0.90
+    Moral prom. Rojo       : 0.88
 
   REGISTRO DE ITERACIONES
-    Iter  1: PERDIO | Agres=0.68  Cob=0.51  Eq=0.28  |  Bajas Azul: 15
-    Iter  2: PERDIO | Agres=0.53  Cob=0.35  Eq=0.25  |  Bajas Azul: 11
-    Iter  3: PERDIO | Agres=0.78  Cob=0.32  Eq=0.34  |  Bajas Azul: 14
-    Iter  4: PERDIO | Agres=0.63  Cob=0.62  Eq=0.40  |  Bajas Azul: 17
-    Iter  5: PERDIO | Agres=0.68  Cob=0.38  Eq=0.22  |  Bajas Azul: 17
-    Iter  6: PERDIO | Agres=0.69  Cob=0.64  Eq=0.15  |  Bajas Azul: 22
-    Iter  7: PERDIO | Agres=0.55  Cob=0.58  Eq=0.25  |  Bajas Azul: 27
-    Iter  8: PERDIO | Agres=0.56  Cob=0.50  Eq=0.26  |  Bajas Azul: 13
-    Iter  9: PERDIO | Agres=0.52  Cob=0.37  Eq=0.31  |  Bajas Azul: 18
-    Iter 10: PERDIO | Agres=0.75  Cob=0.65  Eq=0.43  |  Bajas Azul: 13
+    Iter  1: PERDIO | Agres=0.75  Cob=0.56  Eq=0.19  |  Bajas Azul: 20
+    Iter  2: PERDIO | Agres=0.69  Cob=0.55  Eq=0.19  |  Bajas Azul: 29
+    Iter  3: PERDIO | Agres=0.83  Cob=0.44  Eq=0.26  |  Bajas Azul: 29
+    Iter  4: PERDIO | Agres=0.71  Cob=0.55  Eq=0.28  |  Bajas Azul: 23
+    Iter  5: PERDIO | Agres=0.46  Cob=0.64  Eq=0.23  |  Bajas Azul: 30
+    Iter  6: PERDIO | Agres=0.71  Cob=0.51  Eq=0.21  |  Bajas Azul: 24
+    Iter  7: PERDIO | Agres=0.69  Cob=0.51  Eq=0.09  |  Bajas Azul: 25
+    Iter  8: PERDIO | Agres=0.61  Cob=0.30  Eq=0.30  |  Bajas Azul: 25
+    Iter  9: PERDIO | Agres=0.56  Cob=0.36  Eq=0.37  |  Bajas Azul: 33
+    Iter 10: PERDIO | Agres=0.49  Cob=0.50  Eq=0.05  |  Bajas Azul: 26
 
 ================================================================

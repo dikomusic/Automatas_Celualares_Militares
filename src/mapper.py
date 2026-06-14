@@ -25,16 +25,12 @@ class MapLoader:
         hsv = cv2.cvtColor(resized, cv2.COLOR_BGR2HSV)
 
         # Forest: saturated greens
-        mask_forest = cv2.inRange(hsv,
-                                  np.array([35,  40,  30]),
-                                  np.array([85, 255, 255]))
+        mask_forest = cv2.inRange(hsv, np.array([35,  40,  30]), np.array([85, 255, 255]))
 
-        # River / water: cyan-blue tones
-        mask_river = cv2.inRange(hsv,
-                                 np.array([85,  50,  40]),
-                                 np.array([135, 255, 255]))
+# Río / Obstáculo (Azul/Cian)
+        mask_river = cv2.inRange(hsv, np.array([85,  50,  40]), np.array([135, 255, 255]))
 
-        # Objective: red markers (wraps around 180°)
+# Objetivos (Rojo)
         mask_red1 = cv2.inRange(hsv, np.array([0,  120,  80]), np.array([12, 255, 255]))
         mask_red2 = cv2.inRange(hsv, np.array([168, 120, 80]), np.array([180, 255, 255]))
         mask_objective = cv2.bitwise_or(mask_red1, mask_red2)
@@ -45,9 +41,7 @@ class MapLoader:
                                  np.array([180, 45, 255]))
 
         # Supply: yellow markers
-        mask_supply = cv2.inRange(hsv,
-                                  np.array([18, 100, 100]),
-                                  np.array([35, 255, 255]))
+        mask_supply = cv2.inRange(hsv, np.array([18, 100, 100]), np.array([35, 255, 255]))
 
         # Build grid — order matters (later masks overwrite earlier ones)
         grid = np.zeros((new_h, self.grid_width), dtype=int)

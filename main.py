@@ -263,10 +263,17 @@ def run_simulation(steps: int = 60, n_opt_iter: int = 10, mode: str = 'live',
         if use_editor:
             print('  [EDITOR] Configura el mapa, luego ENTER para iniciar\n')
             custom_units, chosen_weather = viz.run_editor()
-            sim = CASimulator(terrain, params=best_params, weather=chosen_weather,
+            
+            # 1. Pasamos el terreno MODIFICADO (viz.sim.terrain) en lugar del original
+            sim = CASimulator(viz.sim.terrain, params=best_params, weather=chosen_weather,
                               custom_units=custom_units)
+            
+            # 2. Le damos el nuevo simulador al visualizador
             viz.sim = sim
-
+            
+            # 3. ACTUALIZAMOS LA IMAGEN: Volvemos a "hornear" el mapa con los obstáculos
+            viz.terrain = viz.sim.terrain
+            viz.terrain_surf = viz._bake_terrain()
         sim = viz.run(max_steps=steps)
 
     else:
@@ -326,5 +333,6 @@ if __name__ == '__main__':
     }
     run_simulation(
         steps=args.steps, n_opt_iter=args.opt_iter, mode=args.mode,
-        weather=weather_map[args.weather], use_editor=args.editor,
+        weather=weather_map[args.weather], 
+        use_editor=True, 
     )

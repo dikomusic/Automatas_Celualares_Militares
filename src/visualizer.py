@@ -135,6 +135,25 @@ class Tracer:
     def alive(self): return self.life > 0
 
 
+# ── Texto Flotante (Daño y Bajas) ─────────────────────────────────────────────
+class FloatingText:
+    __slots__ = ('x', 'y', 'text', 'color', 'life', 'max_life', 'vy')
+
+    def __init__(self, x, y, text, color):
+        self.x, self.y = float(x), float(y)
+        self.text = text
+        self.color = color
+        self.life = self.max_life = 0.9
+        self.vy = -20.0  # Velocidad hacia arriba
+
+    def update(self, dt: float):
+        self.y += self.vy * dt
+        self.life -= dt
+
+    @property
+    def alive(self): return self.life > 0
+
+
 # ── Main visualizer ───────────────────────────────────────────────────────────
 class PygameVisualizer:
     """WorldBox-inspired real-time Pygame visualizer for the military CA sim."""
@@ -173,6 +192,7 @@ class PygameVisualizer:
 
         self.particles: list[Particle] = []
         self.tracers:   list[Tracer]   = []
+        self.floating_texts: list[FloatingText] = []
 
         self.paused  = False
         self.running = True
@@ -311,17 +331,20 @@ class PygameVisualizer:
 
             if ev.event_type == 'shot':
                 self.tracers.append(Tracer(x1, y1, x2, y2, tc, 1))
-                # Shooter position heats up slightly
                 self.heat_map[ev.src_row, ev.src_col] += 0.3
             elif ev.event_type == 'hit':
                 self.tracers.append(Tracer(x1, y1, x2, y2, tc, 1))
                 self._spawn_sparks(ev.dst_row, ev.dst_col)
                 self.heat_map[ev.dst_row, ev.dst_col] += 1.0
+                # NUEVO: Número de daño rojo flotante
+                dmg_val = np.random.randint(15, 35) 
+                self.floating_texts.append(FloatingText(x2, y2 - 5, f"-{dmg_val}", (255, 60, 60)))
             elif ev.event_type == 'kill':
                 self.tracers.append(Tracer(x1, y1, x2, y2, tc, 2))
                 self._spawn_explosion(ev.dst_row, ev.dst_col)
-                # Deaths leave a strong mark on the heat map
                 self.heat_map[ev.dst_row, ev.dst_col] += 4.0
+                # NUEVO: Letrero amarillo de baja
+                self.floating_texts.append(FloatingText(x2, y2 - 5, "BAJA!", GOLD))
 
     # ── Pixel-art sprite drawing ──────────────────────────────────────────────
 
@@ -426,50 +449,60 @@ class PygameVisualizer:
             pygame.draw.polygon(surf, body, pts)
 
     def _draw_cavalry(self, surf, cx, cy, body, helmet, anim):
-        """Cavalry: rider on horse silhouette."""
-        c    = self.cell
-        half = c // 2
+        """Caballería: Jinete + Escudo Pesado."""
+        c = self.cell; half = c // 2
         if c >= 8:
             horse_col = tuple(max(0, v - 30) for v in body)
-            # Horse body
-            pygame.draw.ellipse(surf, horse_col,
-                                (cx - half, cy + 1, c, half - 1))
-            # Legs (animated)
+            pygame.draw.ellipse(surf, horse_col, (cx - half, cy + 1, c, half - 1))
             leg_y = cy + half
-            offsets = [(-3, 0), (-1, 0), (1, 0), (3, 0)]
-            for i, (ox, _) in enumerate(offsets):
+            for i, (ox, _) in enumerate([(-3, 0), (-1, 0), (1, 0), (3, 0)]):
                 stride = (anim + i) % 2
-                pygame.draw.line(surf, horse_col,
-                                 (cx + ox, leg_y), (cx + ox, leg_y + 3 - stride), 2)
-            # Rider (small)
-            hr = max(2, c // 6)
-            hy = cy - hr
-            pygame.draw.circle(surf, helmet,     (cx, hy), hr + 1)
+                pygame.draw.line(surf, horse_col, (cx + ox, leg_y), (cx + ox, leg_y + 3 - stride), 2)
+            hr = max(2, c // 6); hy = cy - hr
+            pygame.draw.circle(surf, helmet, (cx, hy), hr + 1)
             pygame.draw.circle(surf, SKIN_COLOR, (cx, hy), hr)
             pygame.draw.rect(surf, body, (cx - 2, hy + hr, 4, half - 1))
+            # NUEVO: Escudo de Armadura
+            pygame.draw.rect(surf, (140, 140, 150), (cx + 2, hy + hr, 3, half + 1), border_radius=1)
+            pygame.draw.line(surf, (200, 200, 200), (cx + 2, hy + hr), (cx + 2, hy + hr + half))
         else:
             pygame.draw.ellipse(surf, body, (cx - half + 1, cy - 2, c - 2, half + 2))
 
     def _draw_communications(self, surf, cx, cy, body, anim):
-        """Comms: small body + tall antenna with blinking tip."""
-        c    = self.cell
-        half = c // 2
+        """Comunicaciones: Antena con Ondas de Radar."""
+        c = self.cell; half = c // 2
         if c >= 7:
-            # Box body
             pygame.draw.rect(surf, body, (cx - 3, cy - 1, 7, half))
-            # Antenna mast
             pygame.draw.line(surf, METAL_COLOR, (cx, cy - 1), (cx, cy - half - 2), 2)
-            # Dish arms
-            pygame.draw.line(surf, METAL_COLOR, (cx, cy - half + 1),
-                             (cx - 4, cy - half - 1), 1)
-            pygame.draw.line(surf, METAL_COLOR, (cx, cy - half + 1),
-                             (cx + 4, cy - half - 1), 1)
-            # Blinking signal tip
-            tip_col = (  0, 255, 100) if anim == 0 else (0, 120, 60)
+            pygame.draw.line(surf, METAL_COLOR, (cx, cy - half + 1), (cx - 4, cy - half - 1), 1)
+            pygame.draw.line(surf, METAL_COLOR, (cx, cy - half + 1), (cx + 4, cy - half - 1), 1)
+            tip_col = (0, 255, 100) if anim == 0 else (0, 120, 60)
             pygame.draw.circle(surf, tip_col, (cx, cy - half - 2), 2)
+            # NUEVO: Ondas de radar azules animadas
+            if anim == 0:
+                pygame.draw.arc(surf, (55, 155, 255), (cx - 6, cy - half - 8, 12, 12), 0, math.pi, 1)
+                pygame.draw.arc(surf, (55, 155, 255), (cx - 10, cy - half - 12, 20, 20), 0, math.pi, 1)
         else:
             pts = [(cx, cy-half), (cx+half, cy), (cx, cy+half), (cx-half, cy)]
             pygame.draw.polygon(surf, body, pts)
+
+    def _draw_logistics(self, surf, cx, cy, body, anim):
+        """Logística: Camión con símbolo de suministro."""
+        c = self.cell; half = c // 2
+        if c >= 7:
+            cargo = tuple(min(255, v + 20) for v in body)
+            pygame.draw.rect(surf, cargo, (cx - half + 1, cy - half + 2, c - 2, half + 1))
+            pygame.draw.rect(surf, body, (cx - half + 1, cy - half + 2, c - 2, half + 1), 1)
+            # NUEVO: Símbolo de Suministro Blanco
+            pygame.draw.line(surf, (255, 255, 255), (cx - 1, cy - 1), (cx + 1, cy - 1), 2)
+            pygame.draw.line(surf, (255, 255, 255), (cx, cy - 2), (cx, cy), 2)
+            pygame.draw.rect(surf, body, (cx + 1, cy - half + 1, half - 1, half))
+            woff = anim * 1
+            for wx2 in [cx - half + 3, cx + half - 3]:
+                pygame.draw.circle(surf, (40, 40, 40), (wx2 + woff, cy + 3), 3)
+                pygame.draw.circle(surf, (90, 90, 90), (wx2 + woff, cy + 3), 1)
+        else:
+            pygame.draw.rect(surf, body, (cx - half + 1, cy - half + 1, c - 2, c - 2))
 
     def _draw_engineering(self, surf, cx, cy, body, anim):
         """Engineering: body + wrench/tool cross."""
@@ -492,25 +525,6 @@ class PygameVisualizer:
             pygame.draw.rect(surf, body, (cx - half + 1, cy - half + 1, c - 2, c - 2))
             pygame.draw.line(surf, METAL_COLOR, (cx - half + 2, cy), (cx + half - 2, cy), 1)
             pygame.draw.line(surf, METAL_COLOR, (cx, cy - half + 2), (cx, cy + half - 2), 1)
-
-    def _draw_logistics(self, surf, cx, cy, body, anim):
-        """Logistics: truck/box with wheels."""
-        c    = self.cell
-        half = c // 2
-        if c >= 7:
-            # Cargo box
-            cargo = tuple(min(255, v + 20) for v in body)
-            pygame.draw.rect(surf, cargo, (cx - half + 1, cy - half + 2, c - 2, half + 1))
-            pygame.draw.rect(surf, body, (cx - half + 1, cy - half + 2, c - 2, half + 1), 1)
-            # Cab
-            pygame.draw.rect(surf, body, (cx + 1, cy - half + 1, half - 1, half))
-            # Wheels (animated roll)
-            woff = anim * 1
-            for wx2 in [cx - half + 3, cx + half - 3]:
-                pygame.draw.circle(surf, (40, 40, 40), (wx2 + woff, cy + 3), 3)
-                pygame.draw.circle(surf, (90, 90, 90), (wx2 + woff, cy + 3), 1)
-        else:
-            pygame.draw.rect(surf, body, (cx - half + 1, cy - half + 1, c - 2, c - 2))
 
     def _draw_tank(self, surf, cx, cy, body, anim):
         """Chunky tank with hull, tracks, turret and rotating barrel."""
@@ -689,6 +703,13 @@ class PygameVisualizer:
                                      border_radius=2)
                     surface.blit(ov_surf, (cx - half, cy - half))
 
+            if u.unit_type in (UnitType.CAVALRY, UnitType.LOGISTICS, UnitType.COMMUNICATIONS) or (u.health > u.max_health * 0.8 and u.morale > 0.8):
+                pygame.draw.polygon(surface, GOLD, [
+                    (cx, cy - half - 6), 
+                    (cx + 3, cy - half - 2), 
+                    (cx - 3, cy - half - 2)
+                ])
+            
             # HP bar below unit
             if u.health < u.max_health * 0.99:
                 bw = self.cell
@@ -727,6 +748,14 @@ class PygameVisualizer:
                 pygame.draw.circle(surface, color, (px, py), p.size)
             p.update(dt)
         self.particles = [p for p in self.particles if p.alive]
+        
+        for ft in self.floating_texts:
+            fade = max(0.0, ft.life / ft.max_life)
+            txt_surf = self.font_tiny.render(ft.text, True, ft.color)
+            txt_surf.set_alpha(int(255 * fade)) # Desvanecimiento
+            surface.blit(txt_surf, (int(ft.x - txt_surf.get_width()//2), int(ft.y)))
+            ft.update(dt)
+        self.floating_texts = [ft for ft in self.floating_texts if ft.alive]
 
     # ── Fog of war ────────────────────────────────────────────────────────────
 
@@ -978,7 +1007,7 @@ class PygameVisualizer:
                         sel_arm = UnitType.LOGISTICS
                     elif event.key == pygame.K_c:
                         custom_units.clear()
-                        edit_terrain = self.sim.base_terrain.copy()
+                        edit_terrain = self.terrain.copy()
 
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     mx, my = event.pos
@@ -1162,7 +1191,9 @@ class PygameVisualizer:
                     elif event.key in (pygame.K_MINUS, pygame.K_KP_MINUS):
                         self.fps = max(1, self.fps - 2)
                     elif event.key == pygame.K_r:
-                        self.sim = CASimulator(self.terrain, params=self.sim.params)
+                        self.sim = CASimulator(self.terrain, params=self.sim.params, 
+                               weather=self.sim.weather, 
+                               custom_units=list(self.sim.units))
                         self.step  = 0
                         self.winner = None
                         self.particles.clear()

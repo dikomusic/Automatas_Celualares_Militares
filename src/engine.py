@@ -61,41 +61,25 @@ class UnitType(IntEnum):
     ENGINEERING    = 4   # Ingeniería   – clears / creates obstacles
     LOGISTICS      = 5   # Logística    – mobile resupply
 
+# --- DOCTRINA MILITAR: Estadísticas base por Arma ---
 UNIT_STATS = {
-    UnitType.INFANTRY: dict(
-        health=100, ammo=30, fire_range=12, damage=22, hit_chance=0.60,
-        speed=1.0, vision=18, area=0, comms_range=0, supply_range=0,
-        name='Infanteria',
-    ),
-    UnitType.ARTILLERY: dict(
-        health=80,  ammo=15, fire_range=28, damage=55, hit_chance=0.55,
-        speed=0.5,  vision=14, area=2, comms_range=0, supply_range=0,
-        name='Artilleria',
-    ),
-    UnitType.CAVALRY: dict(
-        health=110, ammo=20, fire_range=10, damage=28, hit_chance=0.65,
-        speed=2.0,  vision=20, area=0, comms_range=0, supply_range=0,
-        name='Caballeria',
-    ),
-    UnitType.COMMUNICATIONS: dict(
-        health=70,  ammo=10, fire_range=8,  damage=10, hit_chance=0.40,
-        speed=0.8,  vision=24, area=0, comms_range=18, supply_range=0,
-        name='Comunicaciones',
-    ),
-    UnitType.ENGINEERING: dict(
-        health=90,  ammo=20, fire_range=8,  damage=18, hit_chance=0.50,
-        speed=0.7,  vision=16, area=0, comms_range=0, supply_range=0,
-        name='Ingenieria',
-    ),
-    UnitType.LOGISTICS: dict(
-        health=75,  ammo=5,  fire_range=6,  damage=8,  hit_chance=0.35,
-        speed=0.6,  vision=14, area=0, comms_range=0, supply_range=12,
-        name='Logistica',
-    ),
+    # INFANTERÍA
+    UnitType.INFANTRY:       {'hp': 100.0, 'ammo': 30, 'range': 10, 'dmg': 22.0, 'acc': 0.60, 'armor': 0.0, 'vision': 8,  'supply_range': 0},
+    # ARTILLERÍA
+    UnitType.ARTILLERY:      {'hp': 60.0,  'ammo': 15, 'range': 25, 'dmg': 50.0, 'acc': 0.45, 'armor': 0.0, 'vision': 12, 'supply_range': 0},
+    # CABALLERÍA
+    UnitType.CAVALRY:        {'hp': 250.0, 'ammo': 40, 'range': 12, 'dmg': 35.0, 'acc': 0.55, 'armor': 0.4, 'vision': 10, 'supply_range': 0},
+    # COMUNICACIONES
+    UnitType.COMMUNICATIONS: {'hp': 80.0,  'ammo': 20, 'range': 8,  'dmg': 15.0, 'acc': 0.50, 'armor': 0.0, 'vision': 15, 'supply_range': 0},
+    # INGENIERÍA
+    UnitType.ENGINEERING:    {'hp': 110.0, 'ammo': 25, 'range': 8,  'dmg': 18.0, 'acc': 0.50, 'armor': 0.1, 'vision': 8,  'supply_range': 0},
+    # LOGÍSTICA
+    UnitType.LOGISTICS:      {'hp': 120.0, 'ammo': 10, 'range': 5,  'dmg': 10.0, 'acc': 0.40, 'armor': 0.1, 'vision': 8,  'supply_range': 3},
 }
 
 # ── Unit states ───────────────────────────────────────────────────────────────
 class UnitState(IntEnum):
+    NORMAL = 0
     ACTIVE       = 0   # Normal operation
     DEFENSIVE    = 1   # Blocking – immobile, −50% damage received (Rule 6)
     SUPPRESSED   = 2   # Artillery hit – can't move/attack (Rule 18)
@@ -119,45 +103,38 @@ STATE_NAMES = {
 # ── Unit ──────────────────────────────────────────────────────────────────────
 @dataclass
 class Unit:
-    team:      int
-    row:       int
-    col:       int
-    unit_type: UnitType  = UnitType.INFANTRY
-    morale:    float     = 1.0
-    state:     UnitState = UnitState.ACTIVE
-    # State timers (ticks remaining)
-    suppress_timer: int = 0
-    fixed_timer:    int = 0
-    reorg_timer:    int = 0
-    build_timer:    int = 0       # Engineering: ticks spent working on a cell
-    departure_step: int = 0       # Rule 5: can't advance before this step
-    hits_taken:     int = 0       # Rule 11: neutralization counter
-    # Set by __post_init__
-    health:     float = 0.0
-    ammo:       int   = 0
-    max_health: float = 0.0
-    max_ammo:   int   = 0
-    visual_row: float = 0.0
-    visual_col: float = 0.0
+    team:       int       # 0 = Azul, 1 = Rojo
+    row:        int
+    col:        int
+    unit_type:  UnitType  = UnitType.INFANTRY
+    state:      UnitState = UnitState.NORMAL
+    morale:     float     = 1.0
+    health:     float     = -1.0  # Se auto-ajusta al nacer
+    ammo:       int       = -1    # Se auto-ajusta al nacer
 
     def __post_init__(self):
-        s = UNIT_STATS[self.unit_type]
-        if self.health == 0.0:
-            self.health = float(s['health'])
-        if self.ammo == 0:
-            self.ammo = int(s['ammo'])
-        self.max_health = float(s['health'])
-        self.max_ammo   = int(s['ammo'])
-        self.visual_row = float(self.row)
-        self.visual_col = float(self.col)
+        # Cuando la unidad nace, busca en el diccionario cuánta vida y munición le toca
+        if self.health == -1.0:
+            self.health = UNIT_STATS[self.unit_type]['hp']
+        if self.ammo == -1:
+            self.ammo = UNIT_STATS[self.unit_type]['ammo']
 
     @property
     def alive(self) -> bool:
-        return self.health > 0.0 and self.state != UnitState.INACTIVE
+        return self.health > 0.0
 
     @property
+    def max_health(self) -> float:
+        return UNIT_STATS[self.unit_type]['hp']
+        
+    @property
+    def max_ammo(self) -> int:
+        return UNIT_STATS[self.unit_type]['ammo']
+    
+    @property
     def stats(self) -> dict:
-        return UNIT_STATS[self.unit_type]
+        # Devuelve las estadísticas correspondientes a su tipo de arma
+        return UNIT_STATS.get(self.unit_type, UNIT_STATS[UnitType.INFANTRY])
 
 
 # ── Combat event (for visual FX) ─────────────────────────────────────────────
@@ -169,6 +146,7 @@ class CombatEvent:
     dst_row: int
     dst_col: int
     team: int
+
 
 
 # ── Dijkstra weighted BFS ─────────────────────────────────────────────────────
@@ -204,25 +182,20 @@ class CASimulator:
       aggressiveness, cover_seeking, teamwork, departure_step
     """
 
-    SPAWN_GAP            = 4
-    COMMS_HIT_PENALTY    = 0.20   # Rule 16: out-of-comms accuracy penalty
-    ENG_BUILD_TICKS      = 3      # Rule 14/15: ticks to clear or build obstacle
-    ISOLATION_RADIUS     = 3      # Rule 21: radius to check surrounding enemies
-    SUPPRESSION_TICKS    = 2      # Rule 18
-    FIXATION_TICKS       = 1      # Rule 8
-    INHIBIT_TICKS        = 2      # Rule 11
-    REORG_TICKS          = 2      # Rule 20
-    NEUTRALIZE_THRESHOLD = 3      # Rule 11: hits before inhibited
-    RESERVE_THRESHOLD    = 0.60   # Rule 24: activate if alive < 60% of initial
+    FIRE_RANGE  = 12   # Rango máximo de disparo (distancia Chebyshev)
+    BASE_DAMAGE = 22.0 # Daño base de los proyectiles
+    HIT_CHANCE  = 0.60 # Probabilidad base de acierto (60%)
+    AMMO_MAX    = 30   # Capacidad máxima de munición
+    HEALTH_MAX  = 100.0 # Salud máxima de las unidades
+    SPAWN_GAP   = 4   # Rule 24: activate if alive < 60% of initial
+    ISOLATION_RADIUS = 5
 
-    def __init__(self, terrain: np.ndarray, params: dict = None,
-                 weather: Weather = Weather.CLEAR,
-                 custom_units: list = None):
-        self.terrain      = terrain.copy().astype(int)  # mutable (engineering)
+    def __init__(self, terrain: np.ndarray, params: dict = None, weather=None, custom_units=None):
+        self.terrain = terrain.copy().astype(int)  # mutable (engineering)
         self.base_terrain = terrain.copy().astype(int)  # original
         self.rows, self.cols = terrain.shape
-        self.weather      = weather
-        self.params       = params or {
+        self.weather = weather if weather is not None else Weather.CLEAR
+        self.params = params or {
             'aggressiveness': 0.65,
             'cover_seeking':  0.50,
             'teamwork':       0.30,
@@ -251,7 +224,8 @@ class CASimulator:
 
     def _place_units(self):
         dep = int(self.params.get('departure_step', 0))
-
+        blue_start = int(self.rows * 0.52)
+        red_start = int(self.rows * 0.22)
         # Composition: 45% Inf, 12% Art, 18% Cav, 8% Com, 10% Eng, 7% Log
         arm_thresholds = [
             (0.45, UnitType.INFANTRY),
@@ -292,7 +266,7 @@ class CASimulator:
 
     def _build_blue_dist(self):
         all_obj = np.argwhere(self.terrain == OBJECTIVE)
-        seeds = [(r, c) for r, c in all_obj if r < self.rows // 2]
+        seeds = [tuple(p) for p in all_obj if p[0] < self.rows // 2]
         if not seeds:
             seeds = [(r, c) for r, c in all_obj]
         if not seeds:
@@ -316,19 +290,14 @@ class CASimulator:
         occupied = {(u.row, u.col) for u in alive}
 
         # ── Decrement state timers ────────────────────────────────────────
+        # --- HABILIDAD DE LOGÍSTICA: Reparto dinámico ---
         for u in alive:
-            if u.suppress_timer > 0:
-                u.suppress_timer -= 1
-                if u.suppress_timer == 0 and u.state == UnitState.SUPPRESSED:
-                    u.state = UnitState.ACTIVE
-            if u.fixed_timer > 0:
-                u.fixed_timer -= 1
-                if u.fixed_timer == 0 and u.state == UnitState.FIXED:
-                    u.state = UnitState.ACTIVE
-            if u.reorg_timer > 0:
-                u.reorg_timer -= 1
-                if u.reorg_timer == 0 and u.state == UnitState.REORGANIZING:
-                    u.state = UnitState.ACTIVE
+            if u.unit_type == UnitType.LOGISTICS:
+                for ally in alive:
+                    if ally.team == u.team and ally != u:
+                        if max(abs(ally.row - u.row), abs(ally.col - u.col)) <= 3:
+                            ally.ammo = min(ally.max_ammo, ally.ammo + 1)
+                            ally.morale = min(1.0, ally.morale + 0.03)
 
         # Rule 24: activate reserves if front drops below threshold
         self._activate_reserves(alive)
@@ -354,7 +323,7 @@ class CASimulator:
         self._logistics_resupply(alive)
 
         # ── Supply depot ──────────────────────────────────────────────────
-        self._supply_depot(alive)
+        self._supply()
 
         # ── Logistic isolation decay (Rule 21) ────────────────────────────
         self._isolation_decay(alive)
@@ -390,118 +359,77 @@ class CASimulator:
 
     # ── Rule 1–5, 13, 17, 19: movement ───────────────────────────────────────
 
-    def _move(self, unit: Unit, occupied: set, all_alive: list, wx: dict):
-        # States that prevent movement
-        if unit.state in (UnitState.SUPPRESSED, UnitState.REORGANIZING,
-                          UnitState.DEFENSIVE, UnitState.FIXED):
-            return
+    def _move(self, unit, occupied: set, alive=None, wx=None):
+        # --- NUEVO: Recuperación natural de valor en cada turno ---
+        unit.morale = min(1.0, unit.morale + 0.015)
 
-        # Rule 5: line of departure
-        if self.step_count < unit.departure_step:
-            return
-
-        # Rule 13: cavalry moves twice per tick; others once
-        move_steps = 2 if unit.unit_type == UnitType.CAVALRY else 1
-
-        speed = unit.stats['speed'] * wx['move_mult']
-        if np.random.random() > self.params['aggressiveness'] * speed:
-            return
-
-        # Rule 19: retreat state management
-        if unit.health < unit.max_health * 0.30 or unit.morale < 0.12:
+        # --- 1. REGLAS DEL AUTÓMATA (Cambio de Estado Táctico) ---
+        # Si está a punto de morir o su moral colapsa MUCHO -> HUIR
+        if unit.health < 20.0 or unit.morale < 0.15:  # Bajamos el umbral para que aguanten más
             unit.state = UnitState.RETREATING
-        elif unit.state == UnitState.RETREATING and unit.health > unit.max_health * 0.55:
-            unit.state = UnitState.ACTIVE
+        # Si se queda sin balas -> REORGANIZACIÓN (Buscar base)
+        elif unit.ammo <= 0:
+            unit.state = UnitState.REORGANIZING
+        # Si la moral baja por fuego enemigo -> SUPRESIÓN (Miedo/Cobertura)
+        elif unit.morale < 0.50:  # Antes era 0.6, ahora aguantan más antes de esconderse
+            unit.state = UnitState.SUPPRESSED
+        # Si no tiene órdenes defensivas previas, avanza normal
+        elif unit.state != UnitState.DEFENSIVE:
+            unit.state = UnitState.NORMAL
+
+        # --- 2. PENALIZACIONES DE MOVIMIENTO (Comportamiento) ---
+        # Si está bajo fuego de supresión, hay un 60% de probabilidad de que quede congelado del miedo
+        if unit.state == UnitState.SUPPRESSED and np.random.random() > 0.4:
+            return
+        # Las unidades defensivas rara vez se mueven de su trinchera
+        if unit.state == UnitState.DEFENSIVE and np.random.random() > 0.15:
+            return
+        # Avance normal regido por el optimizador de agresividad
+        if unit.state == UnitState.NORMAL and np.random.random() > self.params['aggressiveness']:
+            return
 
         dist_map = self._dist_blue if unit.team == 0 else self._dist_red
+        dirs = [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1)]
 
-        # Rule 3/22: vision modified by weather
-        vision = max(3, int(unit.stats['vision'] * wx['vision_mult']))
-        # Rule 4: elevated observation bonus from URBAN terrain
-        if self.terrain[unit.row, unit.col] == URBAN:
-            vision = int(vision * 1.25)
+        best_score = -999999.0
+        best_pos   = None
 
-        visible_enemies = [
-            e for e in all_alive
-            if e.team != unit.team and e.alive
-            and max(abs(e.row - unit.row), abs(e.col - unit.col)) <= vision
-        ]
+        for dr, dc in dirs:
+            nr, nc = unit.row + dr, unit.col + dc
+            if not (0 <= nr < self.rows and 0 <= nc < self.cols): continue
+            
+            t = int(self.terrain[nr, nc])
+            if t == OBSTACLE or (nr, nc) in occupied: continue
 
-        dirs = [(-1, 0), (1, 0), (0, -1), (0, 1),
-                (-1,-1), (-1, 1), (1,-1), (1, 1)]
+            d = dist_map[nr, nc]
+            if d == np.inf: continue
 
-        for _ in range(move_steps):
-            best_score, best_pos = None, None
+            cover = COVER_BONUS.get(t, 0.0)
+            score = 0.0
 
-            for dr, dc in dirs:
-                nr, nc = unit.row + dr, unit.col + dc
-                if not (0 <= nr < self.rows and 0 <= nc < self.cols):
-                    continue
-                t = int(self.terrain[nr, nc])
-                if t == OBSTACLE or (nr, nc) in occupied:
-                    continue
-                # Rule 6: defensive enemy physically blocks the cell
-                if any(e.row == nr and e.col == nc
-                       and e.state == UnitState.DEFENSIVE
-                       for e in all_alive if e.team != unit.team):
-                    continue
-                d = dist_map[nr, nc]
-                if d == np.inf:
-                    continue
-
-                cover = COVER_BONUS.get(t, 0.0)
-                # Rule 2: slope fatigue
-                elev_diff = ELEVATION.get(t, 0) - ELEVATION.get(
-                    int(self.terrain[unit.row, unit.col]), 0)
-                slope_pen = max(0, elev_diff) * 0.3
-
-                if unit.state == UnitState.RETREATING:
-                    if visible_enemies:
-                        nearest = min(visible_enemies,
-                                      key=lambda e: abs(e.row-unit.row)+abs(e.col-unit.col))
-                        score = (abs(nearest.row - nr) + abs(nearest.col - nc)) * 2.5
-                        score += cover * 22.0
-                    else:
-                        score = cover * 20.0 + d * 0.5
-                else:
-                    score = -d * self.params['aggressiveness'] - slope_pen
-                    score += cover * self.params['cover_seeking'] * 12.0
-
-                    # Flanking bonus (Rule 7: channeling implicitly)
-                    if visible_enemies and unit.unit_type not in (
-                            UnitType.ARTILLERY, UnitType.LOGISTICS):
-                        nearest = min(visible_enemies,
-                                      key=lambda e: abs(e.row-unit.row)+abs(e.col-unit.col))
-                        if abs(nc - nearest.col) > abs(nr - nearest.row):
-                            score += 3.0
-
-                    # Cohesion
-                    nearby = sum(
-                        1 for a in all_alive
-                        if a.team == unit.team and a is not unit
-                        and abs(a.row - nr) + abs(a.col - nc) <= 4
-                    )
-                    score += nearby * self.params['teamwork'] * 1.5
-
-                    # Rule 17: low ammo → move toward logistics
-                    if unit.ammo < unit.max_ammo * 0.20:
-                        logs = [x for x in all_alive
-                                if x.team == unit.team
-                                and x.unit_type == UnitType.LOGISTICS]
-                        if logs:
-                            nd = min(abs(x.row-nr)+abs(x.col-nc) for x in logs)
-                            score += max(0, 20 - nd) * 1.5
-
-                if best_score is None or score > best_score:
-                    best_score = score
-                    best_pos = (nr, nc)
-
-            if best_pos:
-                occupied.discard((unit.row, unit.col))
-                unit.row, unit.col = best_pos
-                occupied.add((unit.row, unit.col))
+            # --- 3. LÓGICA DE DECISIÓN ESPACIAL ---
+            if unit.state == UnitState.RETREATING:
+                # Regla: Huir del objetivo (maximizar distancia) y buscar bosque/urbano desesperadamente
+                score = (d * 5.0) + (cover * 50.0)
+                
+            elif unit.state == UnitState.REORGANIZING:
+                # Regla: Retroceder a zonas seguras para buscar recarga
+                score = (d * 3.0) + (cover * 10.0)
+                
+            elif unit.state == UnitState.SUPPRESSED:
+                # Regla: Ignorar el objetivo, priorizar cobertura al 100% (esconderse)
+                score = (-d * 0.5) + (cover * 100.0)
+                
             else:
-                break   # Cavalry: stop if no valid move
+                # NORMAL: Avance táctico mezclando ruta óptima (Dijkstra) y cobertura
+                score = (-d * self.params['aggressiveness'] * 15.0) + (cover * self.params['cover_seeking'] * 25.0)
+
+            if score > best_score:
+                best_score = score
+                best_pos   = (nr, nc)
+
+        if best_pos:
+            unit.row, unit.col = best_pos   # Cavalry: stop if no valid move
 
     # ── Rule 16: communications link ─────────────────────────────────────────
 
@@ -544,123 +472,63 @@ class CASimulator:
 
     # ── Rules 6–13, 18: combat ───────────────────────────────────────────────
 
-    def _fire(self, attacker: Unit, enemies: list, all_alive: list, wx: dict):
-        if attacker.state in (UnitState.SUPPRESSED, UnitState.INHIBITED):
-            return
+    def _fire(self, attacker, enemies: list, alive=None, wx=None):
+        stats = UNIT_STATS[attacker.unit_type]
+        fire_range = stats['range']
+        
         if attacker.ammo <= 0:
             attacker.morale = max(0.05, attacker.morale - 0.04)
             return
 
-        fire_range = attacker.stats['fire_range']
-        vision     = max(3, int(attacker.stats['vision'] * wx['vision_mult']))
-        if self.terrain[attacker.row, attacker.col] == URBAN:
-            vision = int(vision * 1.25)
-
-        base_dmg   = attacker.stats['damage']
-        hit_chance = attacker.stats['hit_chance']
-
-        # Rule 16: comms accuracy penalty
-        if not self._has_comms_link(attacker, all_alive):
-            hit_chance = max(0.05, hit_chance - self.COMMS_HIT_PENALTY)
-
-        effective_range = min(fire_range, vision)
-        closest, min_d = None, effective_range + 1
+        # Buscar objetivo
+        closest, min_d = None, fire_range + 1
         for e in enemies:
-            if not e.alive:
-                continue
+            if not e.alive: continue
             d = max(abs(e.row - attacker.row), abs(e.col - attacker.col))
-            if d <= effective_range and d < min_d:
+            if d < min_d:
                 min_d, closest = d, e
 
-        if closest is None:
-            return
-
+        if closest is None: return
         attacker.ammo -= 1
-        self.combat_events.append(CombatEvent(
-            'shot', attacker.row, attacker.col, closest.row, closest.col, attacker.team))
 
-        # Teamwork bonus (Rule 16 coordination)
-        nearby = sum(
-            1 for u in all_alive
-            if u.alive and u.team == attacker.team and u is not attacker
-            and abs(u.row-attacker.row)+abs(u.col-attacker.col) <= 3
-        )
-        tw_bonus = 1.0 + self.params['teamwork'] * min(nearby, 3) * 0.10
+        accuracy_penalty = 0.4 if attacker.state in (UnitState.SUPPRESSED, UnitState.RETREATING) else 1.0
 
-        # Rule 8: fixer — mark target as FIXED
-        if closest.state == UnitState.ACTIVE:
-            closest.state = UnitState.FIXED
-            closest.fixed_timer = max(closest.fixed_timer, self.FIXATION_TICKS)
+        # --- HABILIDAD DE COMUNICACIONES: Radar táctico ---
+        comms_bonus = 1.0
+        if alive:
+            for ally in alive:
+                if ally.team == attacker.team and ally.unit_type == UnitType.COMMUNICATIONS and ally != attacker:
+                    if max(abs(ally.row - attacker.row), abs(ally.col - attacker.col)) <= 8:
+                        comms_bonus = 1.35  # +35% de puntería si hay un radar cerca
+                        break
 
-        # Rule 11: neutralization counter
-        closest.hits_taken += 1
-        if (closest.hits_taken >= self.NEUTRALIZE_THRESHOLD
-                and closest.state != UnitState.INHIBITED):
-            closest.state        = UnitState.INHIBITED
-            closest.suppress_timer = self.INHIBIT_TICKS
-            closest.hits_taken   = 0
+        nearby_allies = sum(1 for u in self.units if u.alive and u.team == attacker.team and u is not attacker and abs(u.row - attacker.row) + abs(u.col - attacker.col) <= 3)
+        teamwork_bonus = 1.0 + self.params['teamwork'] * min(nearby_allies, 3) * 0.1
 
-        # Hit probability (Rule 25: stochastic uncertainty)
-        eff_hit = (hit_chance * attacker.morale
-                   * (1.0 - min_d / (fire_range + 1))
-                   * tw_bonus
-                   * (1.0 - wx['hit_penalty']))
+        hit_prob = (stats['acc'] * attacker.morale * (1.0 - min_d / fire_range) * teamwork_bonus * accuracy_penalty * comms_bonus)
 
-        # Rule 10: ambush from forest
-        ambush = 1.0
-        if (self.terrain[attacker.row, attacker.col] == FOREST
-                and min_d <= 6):
-            ambush   = 1.5
-            eff_hit  = min(0.95, eff_hit * 1.3)
+        if np.random.random() < hit_prob:
+            # --- HABILIDAD DE CABALLERÍA: Blindaje Pesado ---
+            cover = COVER_BONUS.get(int(self.terrain[closest.row, closest.col]), 0.0)
+            target_armor = UNIT_STATS[closest.unit_type]['armor']
+            
+            # El daño final se reduce por la barricada y la armadura del vehículo
+            damage_reduction = (1.0 - cover) * (1.0 - target_armor)
+            damage = stats['dmg'] * damage_reduction * np.random.uniform(0.7, 1.3)
+            
+            closest.health -= damage
+            closest.morale  = max(0.05, closest.morale - 0.06) # ANTES 0.15: Ahora el daño moral es mucho menor
+            
+            if closest.morale < 0.50 and closest.state != UnitState.RETREATING:
+                closest.state = UnitState.SUPPRESSED
 
-        if np.random.random() >= eff_hit:
-            return  # Miss
-
-        cover  = COVER_BONUS.get(int(self.terrain[closest.row, closest.col]), 0.0)
-        damage = base_dmg * ambush * (1.0 - cover) * np.random.uniform(0.7, 1.3)
-
-        # Rule 6: defensive stance halves incoming damage
-        if closest.state == UnitState.DEFENSIVE:
-            damage *= 0.50
-
-        # Rule 9: breakthrough — 3:1 power ratio increases damage
-        local_power = lambda team, row, col: sum(
-            u.stats['damage'] for u in all_alive
-            if u.team == team and u.alive
-            and abs(u.row-row)+abs(u.col-col) <= 4
-        )
-        att_pow = local_power(attacker.team, closest.row, closest.col)
-        def_pow = local_power(closest.team,  closest.row, closest.col)
-        if def_pow > 0 and att_pow / def_pow >= 3.0:
-            damage *= 1.40
-
-        closest.health -= damage
-        closest.morale  = max(0.05, closest.morale - 0.08)
-        attacker.morale = min(1.00, attacker.morale + 0.02)
-
-        # Rules 12 & 18: Artillery area suppression
-        if attacker.unit_type == UnitType.ARTILLERY:
-            area = attacker.stats['area']
-            for e in enemies:
-                if not e.alive or e is closest:
-                    continue
-                ad = max(abs(e.row - closest.row), abs(e.col - closest.col))
-                if ad <= area:
-                    splash = damage * max(0.0, 0.60 - ad * 0.15)
-                    e.health -= splash
-                    e.morale  = max(0.05, e.morale - 0.15)
-                    if e.state == UnitState.ACTIVE:
-                        e.state         = UnitState.SUPPRESSED
-                        e.suppress_timer = self.SUPPRESSION_TICKS
-                    self.combat_events.append(CombatEvent(
-                        'suppress', attacker.row, attacker.col, e.row, e.col, attacker.team))
-
-        if closest.health <= 0:
-            self.combat_events.append(CombatEvent(
-                'kill', attacker.row, attacker.col, closest.row, closest.col, attacker.team))
+            attacker.morale = min(1.0,  attacker.morale + 0.02)
+            if hasattr(self, 'combat_events'):
+                self.combat_events.append(CombatEvent(attacker.row, attacker.col, closest.row, closest.col, attacker.team, 'hit'))
         else:
-            self.combat_events.append(CombatEvent(
-                'hit',  attacker.row, attacker.col, closest.row, closest.col, attacker.team))
+            closest.morale = max(0.05, closest.morale - 0.01) # ANTES 0.05: El ruido de balas fallidas asusta menos
+            if hasattr(self, 'combat_events'):
+                self.combat_events.append(CombatEvent(attacker.row, attacker.col, closest.row, closest.col, attacker.team, 'shot'))
 
     # ── Rule 17: logistics resupply ───────────────────────────────────────────
 
@@ -679,14 +547,16 @@ class CASimulator:
 
     # ── Supply depot ──────────────────────────────────────────────────────────
 
-    def _supply_depot(self, alive: list):
-        sc = set(map(tuple, np.argwhere(self.terrain == SUPPLY)))
-        for u in alive:
-            for dr, dc in [(0,0),(-1,0),(1,0),(0,-1),(0,1)]:
-                if (u.row+dr, u.col+dc) in sc:
+    def _supply(self):
+        supply_cells = set(map(tuple, np.argwhere(self.terrain == SUPPLY)))
+        if not supply_cells: return
+        for u in self.units:
+            if not u.alive: continue
+            for dr, dc in [(0, 0), (-1, 0), (1, 0), (0, -1), (0, 1)]:
+                if (u.row + dr, u.col + dc) in supply_cells:
                     u.ammo   = min(u.max_ammo,   u.ammo + 6)
-                    u.health = min(u.max_health,  u.health + 5.0)
-                    u.morale = min(1.0,            u.morale + 0.08)
+                    u.health = min(u.max_health, u.health + 5.0)
+                    u.morale = min(1.0,          u.morale + 0.08)
                     break
 
     # ── Rule 21: logistic isolation ───────────────────────────────────────────
